@@ -1,34 +1,40 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts'
 
 interface PerformanceChartProps {
-  data: Array<{
-    name: string
-    value: number
-  }>
+  data: Array<{ name: string; value: number }>
   title: string
 }
 
 export function PerformanceChart({ data, title }: PerformanceChartProps) {
   return (
     <div className="w-full h-full">
-      <h3 className="text-lg font-semibold text-card-foreground mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+      <h3 className="text-sm font-semibold text-card-foreground mb-3">{title}</h3>
+      <ResponsiveContainer width="100%" height="90%">
+        <BarChart 
+          data={data} 
+          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
           <XAxis 
             dataKey="name" 
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
+            stroke="hsl(var(--muted-foreground))" 
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+            interval={0}
           />
           <YAxis 
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
+            stroke="hsl(var(--muted-foreground))" 
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+            width={30}
           />
-          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+          <Bar dataKey="value" radius={[2, 2, 0, 0]}>
             {data.map((entry, index) => (
               <Cell 
                 key={`cell-${index}`} 
-                fill={entry.value >= 0 ? "hsl(var(--success))" : "hsl(var(--destructive))"}
+                fill={entry.value >= 0 ? "hsl(var(--success))" : "hsl(var(--destructive))"} 
               />
             ))}
           </Bar>

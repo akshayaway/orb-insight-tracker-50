@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
@@ -127,6 +127,53 @@ export type Database = {
         }
         Relationships: []
       }
+      budget_prop: {
+        Row: {
+          created_at: string | null
+          id: string
+          propfirm_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          propfirm_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          propfirm_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_prop_propfirm_id_fkey"
+            columns: ["propfirm_id"]
+            isOneToOne: false
+            referencedRelation: "prop_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       cheap_firms: {
         Row: {
           created_at: string
@@ -152,6 +199,123 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      prop_firms: {
+        Row: {
+          affiliate_url: string | null
+          brand: string | null
+          category_id: string | null
+          cons: string[] | null
+          coupon_code: string | null
+          created_at: string | null
+          description: string | null
+          evaluation_model: string | null
+          features: string[] | null
+          funding_amount: string
+          id: string
+          logo_url: string | null
+          max_funding: string | null
+          name: string
+          original_price: number | null
+          payout_rate: number
+          platform: string | null
+          price: number
+          profit_split: number
+          pros: string[] | null
+          regulation: string | null
+          review_score: number | null
+          show_on_homepage: boolean | null
+          slug: string | null
+          starting_fee: number | null
+          table_coupon_code: string | null
+          table_evaluation_rules: string | null
+          table_fee: number | null
+          table_payout_rate: number | null
+          table_platform: string | null
+          table_price: number | null
+          table_profit_split: number | null
+          table_trust_rating: number | null
+          trust_rating: number | null
+          updated_at: string | null
+          user_review_count: number | null
+        }
+        Insert: {
+          affiliate_url?: string | null
+          brand?: string | null
+          category_id?: string | null
+          cons?: string[] | null
+          coupon_code?: string | null
+          created_at?: string | null
+          description?: string | null
+          evaluation_model?: string | null
+          features?: string[] | null
+          funding_amount: string
+          id?: string
+          logo_url?: string | null
+          max_funding?: string | null
+          name: string
+          original_price?: number | null
+          payout_rate: number
+          platform?: string | null
+          price: number
+          profit_split: number
+          pros?: string[] | null
+          regulation?: string | null
+          review_score?: number | null
+          show_on_homepage?: boolean | null
+          slug?: string | null
+          starting_fee?: number | null
+          table_coupon_code?: string | null
+          table_evaluation_rules?: string | null
+          table_fee?: number | null
+          table_payout_rate?: number | null
+          table_platform?: string | null
+          table_price?: number | null
+          table_profit_split?: number | null
+          table_trust_rating?: number | null
+          trust_rating?: number | null
+          updated_at?: string | null
+          user_review_count?: number | null
+        }
+        Update: {
+          affiliate_url?: string | null
+          brand?: string | null
+          category_id?: string | null
+          cons?: string[] | null
+          coupon_code?: string | null
+          created_at?: string | null
+          description?: string | null
+          evaluation_model?: string | null
+          features?: string[] | null
+          funding_amount?: string
+          id?: string
+          logo_url?: string | null
+          max_funding?: string | null
+          name?: string
+          original_price?: number | null
+          payout_rate?: number
+          platform?: string | null
+          price?: number
+          profit_split?: number
+          pros?: string[] | null
+          regulation?: string | null
+          review_score?: number | null
+          show_on_homepage?: boolean | null
+          slug?: string | null
+          starting_fee?: number | null
+          table_coupon_code?: string | null
+          table_evaluation_rules?: string | null
+          table_fee?: number | null
+          table_payout_rate?: number | null
+          table_platform?: string | null
+          table_price?: number | null
+          table_profit_split?: number | null
+          table_trust_rating?: number | null
+          trust_rating?: number | null
+          updated_at?: string | null
+          user_review_count?: number | null
+        }
+        Relationships: []
       }
       propfirms: {
         Row: {
@@ -296,6 +460,41 @@ export type Database = {
           },
         ]
       }
+      table_review_firms: {
+        Row: {
+          created_at: string | null
+          firm_id: string | null
+          id: string
+          is_approved: boolean | null
+          sort_priority: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          firm_id?: string | null
+          id?: string
+          is_approved?: boolean | null
+          sort_priority?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          firm_id?: string | null
+          id?: string
+          is_approved?: boolean | null
+          sort_priority?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "table_review_firms_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "prop_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       top_firms: {
         Row: {
           created_at: string
@@ -324,6 +523,59 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      top5_prop: {
+        Row: {
+          created_at: string | null
+          id: string
+          propfirm_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          propfirm_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          propfirm_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "top5_prop_propfirm_id_fkey"
+            columns: ["propfirm_id"]
+            isOneToOne: false
+            referencedRelation: "prop_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_reviews: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          screenshot_url: string | null
+          title: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          screenshot_url?: string | null
+          title?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          screenshot_url?: string | null
+          title?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       trades: {
         Row: {

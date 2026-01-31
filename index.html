@@ -2,9 +2,50 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>PropFirm Knowledge Journal</title>
+    <meta name="description" content="Professional trading journal for prop firm traders. Track your trades, analyze performance, and improve your trading." />
     <meta property="og:title" content="PropFirm Knowledge Journal" />
+    <meta property="og:description" content="Professional trading journal for prop firm traders" />
+    
+    <!-- Mobile App Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PropFirm Journal" />
+    <meta name="theme-color" content="#1f1f1f" />
+    <meta name="msapplication-navbutton-color" content="#1f1f1f" />
+    <meta name="msapplication-TileColor" content="#1f1f1f" />
+    
+    <!-- Prevent phone number detection -->
+    <meta name="format-detection" content="telephone=no" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg" />
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg" />
+    
+    <!-- Splash screen background for smooth loading -->
+    <style>
+      html, body {
+        background-color: #1f1f1f;
+        margin: 0;
+        padding: 0;
+      }
+      /* Allow scrolling on all devices */
+      html {
+        height: 100%;
+      }
+      body {
+        overflow-y: auto;
+        overflow-x: hidden;
+        height: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+      #root {
+        width: 100%;
+      }
+    </style>
   </head>
 
   <body>

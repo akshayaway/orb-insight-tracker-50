@@ -1,0 +1,81 @@
+<svg viewBox="0 0 280 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .propfirm-text { font-family: Arial, sans-serif; font-weight: bold; letter-spacing: 2px; }
+      .knowledge-text { font-family: Arial, sans-serif; font-weight: bold; letter-spacing: 1px; }
+      .community-text { font-family: Arial, sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; }
+    </style>
+  </defs>
+  
+  <!-- Outer circle border -->
+  <circle cx="140" cy="140" r="130" fill="none" stroke="#2c3e50" stroke-width="2"/>
+  
+  <!-- Inner decorative circles -->
+  <circle cx="140" cy="140" r="125" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.6"/>
+  <circle cx="140" cy="140" r="120" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.3"/>
+  
+  <!-- Globe background circle -->
+  <circle cx="140" cy="130" r="65" fill="#2c3e50" stroke="#d4af37" stroke-width="2"/>
+  
+  <!-- Globe grid lines -->
+  <line x1="75" y1="130" x2="205" y2="130" stroke="#d4af37" stroke-width="1.5" opacity="0.7"/>
+  <line x1="140" y1="65" x2="140" y2="195" stroke="#d4af37" stroke-width="1.5" opacity="0.7"/>
+  
+  <!-- Horizontal latitude lines -->
+  <ellipse cx="140" cy="100" rx="55" ry="15" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.5"/>
+  <ellipse cx="140" cy="160" rx="55" ry="15" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.5"/>
+  
+  <!-- Vertical longitude lines -->
+  <path d="M 110 70 Q 110 130 110 190" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.4"/>
+  <path d="M 170 70 Q 170 130 170 190" fill="none" stroke="#d4af37" stroke-width="1" opacity="0.4"/>
+  
+  <!-- Candlesticks (Gold color) -->
+  <!-- Candle 1 -->
+  <rect x="120" y="110" width="5" height="28" fill="#d4af37"/>
+  <rect x="118" y="108" width="9" height="3" fill="#d4af37"/>
+  <rect x="118" y="136" width="9" height="3" fill="#d4af37"/>
+  
+  <!-- Candle 2 -->
+  <rect x="135" y="105" width="5" height="35" fill="#d4af37"/>
+  <rect x="133" y="103" width="9" height="3" fill="#d4af37"/>
+  <rect x="133" y="138" width="9" height="3" fill="#d4af37"/>
+  
+  <!-- Candle 3 -->
+  <rect x="150" y="118" width="5" height="20" fill="#d4af37"/>
+  <rect x="148" y="116" width="9" height="3" fill="#d4af37"/>
+  <rect x="148" y="136" width="9" height="3" fill="#d4af37"/>
+  
+  <!-- Uptrend arrow -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#d4af37"/>
+    </marker>
+  </defs>
+  <line x1="165" y1="135" x2="185" y2="110" stroke="#d4af37" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <!-- TOP TEXT: PROPFIRM (curved) -->
+  <path id="topCurve" d="M 60,140 A 80,80 0 0,1 220,140" fill="none"/>
+  <text class="propfirm-text" font-size="32" fill="#2c3e50" letter-spacing="3">
+    <textPath href="#topCurve" startOffset="50%" text-anchor="middle">
+      PROPFIRM
+    </textPath>
+  </text>
+  
+  <!-- BOTTOM TEXT: KNOWLEDGE (curved) -->
+  <path id="bottomCurve" d="M 220,140 A 80,80 0 0,1 60,140" fill="none"/>
+  <text class="knowledge-text" font-size="32" fill="#2c3e50" letter-spacing="2">
+    <textPath href="#bottomCurve" startOffset="50%" text-anchor="middle">
+      KNOWLEDGE
+    </textPath>
+  </text>
+  
+  <!-- Decorative dashes -->
+  <line x1="75" y1="138" x2="85" y2="138" stroke="#d4af37" stroke-width="2"/>
+  <line x1="195" y1="138" x2="205" y2="138" stroke="#d4af37" stroke-width="2"/>
+  
+  <!-- FOREX TRADING COMMUNITY banner -->
+  <rect x="50" y="240" width="180" height="35" rx="5" fill="#d4af37" opacity="0.9"/>
+  <text class="community-text" font-size="14" fill="#2c3e50" x="140" y="262" text-anchor="middle" font-weight="600">
+    FOREX TRADING COMMUNITY
+  </text>
+</svg>

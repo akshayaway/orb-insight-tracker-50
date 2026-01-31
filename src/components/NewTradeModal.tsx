@@ -10,19 +10,31 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Upload, X } from 'lucide-react';
+import { Plus, Upload, X, Image as ImageIcon } from 'lucide-react';
 
 interface NewTradeModalProps {
   onTradeAdded?: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
+export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalProps) {
   const { user } = useAuth();
   const { getActiveAccount } = useAccounts();
   const { toast } = useToast();
   const activeAccount = getActiveAccount();
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  // Use external control if provided, otherwise use internal state
+  const open = isOpen !== undefined ? isOpen : internalOpen;
+  const setOpen = (value: boolean) => {
+    if (onClose && !value) {
+      onClose();
+    } else if (isOpen === undefined) {
+      setInternalOpen(value);
+    }
+  };
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
@@ -30,7 +42,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
     date: new Date().toISOString().split('T')[0],
     symbol: '',
     side: '',
-    setup_tag: '',
+    session: '',
     rr: '',
     result: '',
     notes: '',
@@ -50,25 +62,52 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
-    if (!user) return null;
-    
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('screenshots')
-      .upload(fileName, file);
-
-    if (uploadError) {
-      console.error('Error uploading image:', uploadError);
+    if (!user) {
+      console.error('No user found for image upload');
       return null;
     }
+    
+    try {
+      console.log('Starting image upload for user:', user.id);
+      console.log('File details:', { name: file.name, size: file.size, type: file.type });
+      
+      // Create unique file name
+      const fileName = `${user.id}-${Date.now()}-${file.name}`;
+      console.log('Generated filename:', fileName);
+      
+      // Upload to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("trade-screenshots")
+        .upload(fileName, file);
 
-    const { data } = supabase.storage
-      .from('screenshots')
-      .getPublicUrl(fileName);
+      if (uploadError) {
+        console.error('Upload error details:', uploadError);
+        toast({
+          title: "Upload Error",
+          description: `Failed to upload image: ${uploadError.message}`,
+          variant: "destructive",
+        });
+        return null;
+      }
 
-    return data.publicUrl;
+      console.log('Upload successful:', uploadData);
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("trade-screenshots")
+        .getPublicUrl(fileName);
+
+      console.log('Generated public URL:', urlData.publicUrl);
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error in uploadImage:', error);
+      toast({
+        title: "Upload Error",
+        description: "An unexpected error occurred while uploading the image",
+        variant: "destructive",
+      });
+      return null;
+    }
   };
 
   const resetForm = () => {
@@ -76,7 +115,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
       date: new Date().toISOString().split('T')[0],
       symbol: '',
       side: '',
-      setup_tag: '',
+      session: '',
       rr: '',
       result: '',
       notes: '',
@@ -90,7 +129,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
     e.preventDefault();
     if (!user) {
       toast({
-        title: "Error",
+        title: "Authentication Error",
         description: "You must be logged in to add trades",
         variant: "destructive",
       });
@@ -99,11 +138,45 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
 
     if (!activeAccount) {
       toast({
-        title: "Error", 
+        title: "Account Error", 
         description: "No active trading account found. Please create an account in Settings.",
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate required fields
+    if (!formData.symbol || !formData.side || !formData.result || !formData.session) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields (Symbol, Side, Session, and Result)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate risk percentage
+    const riskPercentage = parseFloat(formData.risk_percentage);
+    if (isNaN(riskPercentage) || riskPercentage <= 0 || riskPercentage > 100) {
+      toast({
+        title: "Validation Error",
+        description: "Risk percentage must be between 0.1 and 100",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate R:R ratio if provided
+    if (formData.rr) {
+      const rr = parseFloat(formData.rr);
+      if (isNaN(rr) || rr <= 0) {
+        toast({
+          title: "Validation Error",
+          description: "R:R ratio must be a positive number",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     setLoading(true);
@@ -112,55 +185,79 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
       let imageUrl = null;
       
       if (imageFile) {
+        console.log('Image file selected, attempting upload...');
         imageUrl = await uploadImage(imageFile);
+        console.log('Upload result:', imageUrl);
         if (!imageUrl) {
+          console.error('Image upload failed, proceeding without image');
           toast({
-            title: "Error",
-            description: "Failed to upload image",
-            variant: "destructive",
+            title: "Upload Warning",
+            description: "Failed to upload image. Trade will be saved without image.",
+            variant: "default",
           });
-          setLoading(false);
-          return;
+          // Continue without image instead of failing completely
+        } else {
+          console.log('Image uploaded successfully:', imageUrl);
         }
+      } else {
+        console.log('No image file selected');
       }
 
+      console.log('Saving trade with image_url:', imageUrl);
+      console.log('Form data:', {
+        user_id: user.id,
+        account_id: activeAccount.id,
+        symbol: formData.symbol,
+        side: formData.side,
+        session: formData.session,
+        result: formData.result,
+        image_url: imageUrl
+      });
+      
       const { error } = await supabase
         .from('trades')
         .insert({
           user_id: user.id,
           account_id: activeAccount.id,
           date: new Date(formData.date).toISOString(),
-          session: formData.setup_tag || 'Other', // Keep session for compatibility
+          session: formData.session,
           symbol: formData.symbol,
           side: formData.side,
-          setup_tag: formData.setup_tag || null,
+          setup_tag: formData.session, // Keep for backward compatibility
           rr: formData.rr ? Number(formData.rr) : null,
           result: formData.result,
           notes: formData.notes || null,
-          image_url: imageUrl,
-          risk_percentage: formData.risk_percentage ? Number(formData.risk_percentage) : 1.0,
+          image_url: imageUrl, // Store the image URL
+          risk_percentage: riskPercentage,
+          updated_at: new Date().toISOString(),
         });
 
       if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
+        throw new Error(error.message);
+      }
+
+      console.log('Trade saved successfully with image_url:', imageUrl);
+
+      // Only show success toast with rate limiting
+      const lastToastTime = localStorage.getItem('lastTradeToastTime');
+      const now = Date.now();
+      if (!lastToastTime || now - parseInt(lastToastTime) > 3000) {
         toast({
           title: "Success",
           description: "Trade logged successfully",
         });
-        
-        resetForm();
-        setOpen(false);
-        onTradeAdded?.();
+        localStorage.setItem('lastTradeToastTime', now.toString());
       }
-    } catch (error) {
+      
+      resetForm();
+      setOpen(false);
+      // Ensure account balance is recalculated after adding new trade
+      onTradeAdded?.();
+    } catch (error: any) {
+      console.error('Error saving trade:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error.message || "An unexpected error occurred while saving the trade",
         variant: "destructive",
       });
     }
@@ -168,8 +265,25 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
     setLoading(false);
   };
 
+  // Calculate risk amount based on account starting balance and risk percentage
+  const calculateRiskAmount = () => {
+    if (!activeAccount) return 0;
+    const riskPercentage = parseFloat(formData.risk_percentage);
+    if (isNaN(riskPercentage)) return 0;
+    
+    // Using starting_balance instead of current_balance for consistent risk calculation
+    // This ensures risk is always calculated based on the initial account size
+    const riskAmount = (activeAccount.starting_balance * riskPercentage) / 100;
+    return Math.round(riskAmount * 100) / 100; // Round to 2 decimal places
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) {
+        resetForm();
+      }
+    }}>
       <DialogTrigger asChild>
         <motion.div
           whileHover={{ scale: 1.05 }}
@@ -188,7 +302,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date">Date *</Label>
               <Input
                 id="date"
                 type="date"
@@ -199,11 +313,11 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="symbol">Symbol</Label>
+              <Label htmlFor="symbol">Symbol *</Label>
               <Input
                 id="symbol"
                 value={formData.symbol}
-                onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, symbol: e.target.value.toUpperCase() })}
                 placeholder="e.g., EURUSD, XAUUSD"
                 required
               />
@@ -212,7 +326,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="side">Side</Label>
+              <Label htmlFor="side">Side *</Label>
               <Select
                 value={formData.side}
                 onValueChange={(value) => setFormData({ ...formData, side: value })}
@@ -229,23 +343,19 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="setup_tag">Setup Tag</Label>
+              <Label htmlFor="session">Session *</Label>
               <Select
-                value={formData.setup_tag}
-                onValueChange={(value) => setFormData({ ...formData, setup_tag: value })}
+                value={formData.session}
+                onValueChange={(value) => setFormData({ ...formData, session: value })}
+                required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select setup" />
+                  <SelectValue placeholder="Select session" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Asia">Asia</SelectItem>
                   <SelectItem value="London">London</SelectItem>
-                  <SelectItem value="NY Open">NY Open</SelectItem>
-                  <SelectItem value="NY Close">NY Close</SelectItem>
-                  <SelectItem value="ORB">ORB</SelectItem>
-                  <SelectItem value="Breakout">Breakout</SelectItem>
-                  <SelectItem value="Retracement">Retracement</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  <SelectItem value="New York">New York</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -258,6 +368,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
                 id="rr"
                 type="number"
                 step="0.1"
+                min="0.1"
                 value={formData.rr}
                 onChange={(e) => setFormData({ ...formData, rr: e.target.value })}
                 placeholder="e.g., 1.5"
@@ -265,20 +376,21 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="risk_percentage">Risk Percentage (%)</Label>
+              <Label htmlFor="risk_percentage">Risk Percentage (%) *</Label>
               <Input
                 id="risk_percentage"
                 type="number"
                 step="0.1"
                 min="0.1"
-                max="10"
+                max="100"
                 value={formData.risk_percentage}
                 onChange={(e) => setFormData({ ...formData, risk_percentage: e.target.value })}
                 placeholder="1.0"
+                required
               />
               {activeAccount && formData.risk_percentage && (
                 <p className="text-xs text-muted-foreground">
-                  Risk Amount: ${(activeAccount.current_balance * (Number(formData.risk_percentage) / 100)).toFixed(2)}
+                  Risk Amount: ${calculateRiskAmount().toFixed(2)}
                 </p>
               )}
             </div>
@@ -286,7 +398,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
 
           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="result">Result</Label>
+              <Label htmlFor="result">Result *</Label>
               <Select
                 value={formData.result}
                 onValueChange={(value) => setFormData({ ...formData, result: value })}
@@ -341,7 +453,7 @@ export function NewTradeModal({ onTradeAdded }: NewTradeModalProps) {
               ) : (
                 <label htmlFor="screenshot" className="cursor-pointer">
                   <div className="flex flex-col items-center justify-center py-4">
-                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
                     <span className="text-sm text-muted-foreground">
                       Click to upload screenshot
                     </span>

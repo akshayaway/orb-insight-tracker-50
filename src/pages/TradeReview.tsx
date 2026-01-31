@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Edit3, DollarSign, Target, TrendingUp, Calendar, Clock, FileText } from "lucide-react";
+import { ArrowLeft, Edit3, DollarSign, Target, TrendingUp, TrendingDown, Calendar, Clock, FileText, Image as ImageIcon, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +14,8 @@ import { motion } from "framer-motion";
 import type { Trade } from "@/hooks/useTrades";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { cn } from "@/lib/utils";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 
 export default function TradeReview() {
   const { tradeId } = useParams<{ tradeId: string }>();
@@ -22,14 +24,14 @@ export default function TradeReview() {
   const { getActiveAccount } = useAccounts();
   const { toast } = useToast();
   const activeAccount = getActiveAccount();
-
+  
   const [trade, setTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
   const [strategyCount, setStrategyCount] = useState(0);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!tradeId || !user) return;
-    
     fetchTrade();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tradeId, user]);
@@ -39,7 +41,6 @@ export default function TradeReview() {
     
     try {
       setLoading(true);
-      
       // Fetch the specific trade
       const { data: tradeData, error: tradeError } = await supabase
         .from('trades')
@@ -47,11 +48,13 @@ export default function TradeReview() {
         .eq('id', tradeId)
         .eq('user_id', user.id)
         .single();
-
+      
       if (tradeError) throw tradeError;
       
       setTrade(tradeData);
-
+      console.log('Fetched trade data:', tradeData);
+      console.log('Image URL from trade:', tradeData.image_url);
+      
       // Fetch strategy count if strategy_tag exists
       if (tradeData.strategy_tag) {
         const { count, error: countError } = await supabase
@@ -59,7 +62,7 @@ export default function TradeReview() {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('strategy_tag', tradeData.strategy_tag);
-
+        
         if (!countError && count !== null) {
           setStrategyCount(count);
         }
@@ -80,28 +83,63 @@ export default function TradeReview() {
   const calculatePnL = (trade: Trade) => {
     if (!activeAccount) return 0;
     
-    // Use actual pnl_dollar if available
+    // Use actual pnl_dollar if available (most accurate)
     if (trade.pnl_dollar !== null && trade.pnl_dollar !== undefined) {
       return Number(trade.pnl_dollar);
     }
     
-    // Fallback to R:R based calculation
-    const riskAmount = activeAccount.starting_balance * (activeAccount.risk_per_trade / 100);
+    // Calculate based on risk percentage and R:R ratio using starting balance
+    const riskPercentage = trade.risk_percentage || 1.0; // Default to 1% if not set
+    const riskAmount = activeAccount.starting_balance * (riskPercentage / 100);
+    const rrRatio = trade.rr || 1; // Default to 1:1 if not set
     
-    if (trade.result === 'Win') {
-      return riskAmount * Number(trade.rr || 0);
-    } else if (trade.result === 'Loss') {
-      return -riskAmount;
-    } else {
-      return 0; // Breakeven
+    switch (trade.result.toLowerCase()) {
+      case 'win':
+        return Number((riskAmount * rrRatio).toFixed(2)); // Win: risk * reward ratio
+      case 'loss':
+        return Number((-riskAmount).toFixed(2)); // Loss: -risk amount
+      default:
+        return 0; // Breakeven
     }
+  };
+
+  const calculateRiskMetrics = (trade: Trade) => {
+    if (!activeAccount) return null;
+    
+    const riskPercentage = trade.risk_percentage || 1.0;
+    const riskAmount = activeAccount.starting_balance * (riskPercentage / 100);
+    const rrRatio = trade.rr || 1;
+    const pnl = calculatePnL(trade);
+    
+    // Calculate potential reward amount
+    const potentialReward = riskAmount * rrRatio;
+    
+    // Calculate actual return percentage
+    const actualReturnPercentage = (pnl / activeAccount.starting_balance) * 100;
+    
+    // Calculate efficiency (actual vs expected)
+    const expectedPnL = trade.result === 'Win' ? potentialReward : -riskAmount;
+    const efficiency = expectedPnL !== 0 ? (pnl / expectedPnL) * 100 : 100;
+    
+    return {
+      riskPercentage,
+      riskAmount,
+      rrRatio,
+      potentialReward,
+      actualReturnPercentage,
+      efficiency,
+      riskRewardQuality: rrRatio >= 2 ? 'Excellent' : rrRatio >= 1.5 ? 'Good' : rrRatio >= 1 ? 'Fair' : 'Poor'
+    };
   };
 
   const getResultColor = (result: string) => {
     switch (result.toLowerCase()) {
-      case 'win': return 'bg-success text-success-foreground';
-      case 'loss': return 'bg-destructive text-destructive-foreground';
-      default: return 'bg-secondary text-secondary-foreground';
+      case 'win':
+        return 'bg-success text-success-foreground';
+      case 'loss':
+        return 'bg-destructive text-destructive-foreground';
+      default:
+        return 'bg-secondary text-secondary-foreground';
     }
   };
 
@@ -120,8 +158,8 @@ export default function TradeReview() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Trade not found</p>
-          <Button onClick={() => navigate('/')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+          <Button onClick={() => navigate('/')} className="h-9 text-sm">
+            <ArrowLeft className="h-3 w-3 mr-1" />
             Back to Dashboard
           </Button>
         </div>
@@ -132,188 +170,480 @@ export default function TradeReview() {
   const pnl = calculatePnL(trade);
 
   return (
-    <motion.div
-      className="space-y-6"
+    <motion.div 
+      className="space-y-4 w-full max-w-full overflow-x-hidden"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => navigate('/')} className="flex items-center gap-1 h-8 p-1.5">
+            <ArrowLeft className="h-3 w-3" />
+            <span className="text-xs">Back</span>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Trade Review</h1>
-            <p className="text-muted-foreground">Detailed analysis of your trade</p>
+            <h1 className="text-lg font-bold text-foreground">Trade Review</h1>
+            <p className="text-muted-foreground text-xs">Detailed analysis of your trade</p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2"
-        >
-          <Edit3 className="h-4 w-4" />
+        <Button variant="outline" onClick={() => navigate('/')} className="flex items-center gap-1 h-8 p-2 text-xs">
+          <Edit3 className="h-3 w-3" />
           Edit Trade
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Trade Summary */}
-        <motion.div
+      <div className="grid grid-cols-1 gap-4 w-full max-w-full overflow-x-hidden">
+        {/* Enhanced Trade Summary */}
+        <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
         >
           <Card className="bg-gradient-card shadow-card border-border">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-card-foreground">
-                <TrendingUp className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-card-foreground text-lg font-bold">
+                <TrendingUp className="h-4 w-4" />
                 Trade Summary
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Result</span>
-                <Badge className={getResultColor(trade.result)}>
-                  {trade.result}
-                </Badge>
+            <CardContent className="space-y-3">
+              {/* Result Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium text-sm">Trade Result</span>
+                  <div className="flex items-center gap-1">
+                    <Badge className={cn(
+                      "font-semibold px-2 py-1 text-sm",
+                      getResultColor(trade.result)
+                    )}>
+                      {trade.result}
+                    </Badge>
+                    {trade.result === 'Win' && (
+                      <TrendingUp className="h-3 w-3 text-success" />
+                    )}
+                  </div>
+                </div>
+                
+                {/* P&L Display */}
+                <div className="p-2 bg-muted/20 rounded border border-border">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-muted-foreground font-medium">Profit & Loss</span>
+                    <span className="text-sm text-muted-foreground font-medium">
+                      {pnl >= 0 ? 'Profit' : 'Loss'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className={cn(
+                      "text-xl font-bold",
+                      pnl >= 0 ? "text-success" : "text-destructive"
+                    )}>
+                      {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                    </span>
+                    {pnl >= 0 ? (
+                      <TrendingUp className="h-4 w-4 text-success" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-destructive" />
+                    )}
+                  </div>
+                </div>
               </div>
               
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Session</span>
-                <Badge variant="outline" className="border-border">
-                  {trade.session}
-                </Badge>
+              <Separator className="my-2" />
+              
+              {/* Trade Details Grid */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <span className="text-sm text-muted-foreground font-medium">Session</span>
+                    <Badge variant="outline" className="border-border font-medium text-sm px-1.5 py-0.5">
+                      {trade.session}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-sm text-muted-foreground font-medium">Symbol</span>
+                    <span className="font-mono font-bold text-card-foreground text-sm">
+                      {trade.symbol || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-sm text-muted-foreground font-medium">Side</span>
+                    <div className="flex items-center gap-1">
+                      {trade.side === "LONG" ? (
+                        <TrendingUp className="h-3 w-3 text-success" />
+                      ) : trade.side === "SHORT" ? (
+                        <TrendingDown className="h-3 w-3 text-destructive" />
+                      ) : null}
+                      <span className="font-medium text-card-foreground text-sm">
+                        {trade.side || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-sm text-muted-foreground font-medium">Trade Date</span>
+                    <span className="font-medium text-card-foreground text-sm">
+                      {new Date(trade.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+                </div>
               </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Date</span>
-                <span className="font-medium text-card-foreground">
-                  {new Date(trade.date).toLocaleDateString()}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">P&L</span>
-                <span className={cn(
-                  "font-bold",
-                  pnl >= 0 ? "text-success" : "text-destructive"
-                )}>
-                  ${pnl > 0 ? '+' : ''}{pnl.toFixed(2)}
-                </span>
+              
+              <Separator className="my-2" />
+              
+              {/* Performance Summary */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-medium text-muted-foreground">Trade Performance</span>
+                  <span className={cn(
+                    "text-[10px] font-bold",
+                    trade.result === 'Win' ? "text-success" : trade.result === 'Loss' ? "text-destructive" : "text-muted-foreground"
+                  )}>
+                    {trade.result === 'Win' ? '✓ Successful' : trade.result === 'Loss' ? '✗ Unsuccessful' : '⚪ Neutral'}
+                  </span>
+                </div>
+                
+                {/* Quick Stats */}
+                <div className="grid grid-cols-1 gap-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-muted-foreground">Risk:Reward Ratio:</span>
+                    <span className="font-mono text-card-foreground">
+                      {trade.rr ? `1:${trade.rr}` : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-muted-foreground">Risk Percentage:</span>
+                    <span className="font-mono text-card-foreground">
+                      {trade.risk_percentage ? `${trade.risk_percentage}%` : '1.0%'}
+                    </span>
+                  </div>
+                  {activeAccount && (
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-muted-foreground">Account Impact:</span>
+                      <span className={cn(
+                        "font-mono",
+                        pnl >= 0 ? "text-success" : "text-destructive"
+                      )}>
+                        {((pnl / activeAccount.starting_balance) * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Risk Metrics */}
-        <motion.div
+        {/* Enhanced Risk Metrics */}
+        <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
           <Card className="bg-gradient-card shadow-card border-border">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-card-foreground">
-                <Target className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-card-foreground text-lg font-bold">
+                <Target className="h-4 w-4" />
                 Risk Metrics
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Risk:Reward</span>
-                  <span className="font-medium text-card-foreground">
-                    {trade.rr ? `1:${trade.rr}` : 'N/A'}
-                  </span>
-                </div>
-                {trade.rr && (
-                  <div className="space-y-1">
-                    <Progress 
-                      value={getRRProgress(trade.rr)} 
-                      className="h-2"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      R:R Ratio: {trade.rr.toFixed(1)}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {activeAccount && (
-                <>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Risk %</span>
-                    <span className="font-medium text-card-foreground">
-                      {activeAccount.risk_per_trade}%
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Risk Amount</span>
-                    <span className="font-medium text-card-foreground">
-                      ${(activeAccount.starting_balance * (activeAccount.risk_per_trade / 100)).toFixed(2)}
-                    </span>
-                  </div>
-                </>
-              )}
+            <CardContent className="space-y-3">
+              {(() => {
+                const metrics = calculateRiskMetrics(trade);
+                if (!metrics) return <div className="text-muted-foreground text-xs">Risk metrics unavailable</div>;
+                
+                return (
+                  <>
+                    {/* Risk:Reward Ratio Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground font-medium">Risk:Reward Ratio</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-lg text-card-foreground">
+                            1:{metrics.rrRatio.toFixed(1)}
+                          </span>
+                          <Badge 
+                            variant={metrics.rrRatio >= 2 ? "default" : metrics.rrRatio >= 1.5 ? "secondary" : "outline"} 
+                            className={cn(
+                              "text-[10px] px-1.5 py-0.5",
+                              metrics.rrRatio >= 2 ? "bg-success/10 text-success border-success/30" : 
+                              metrics.rrRatio >= 1.5 ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" : 
+                              "bg-orange-500/10 text-orange-600 border-orange-500/30"
+                            )}
+                          >
+                            {metrics.riskRewardQuality}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      {/* R:R Progress Bar */}
+                      <div className="space-y-1">
+                        <Progress 
+                          value={Math.min((metrics.rrRatio / 3) * 100, 100)} 
+                          className={cn(
+                            "h-2 transition-all duration-300",
+                            "[&>div]:transition-all [&>div]:duration-300"
+                          )} 
+                        />
+                        <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                          <span>Poor (1:0.5)</span>
+                          <span>Fair (1:1)</span>
+                          <span>Good (1:1.5)</span>
+                          <span>Excellent (1:2+)</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <Separator className="my-2" />
+                    
+                    {/* Risk Details Grid */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <span className="text-sm text-muted-foreground font-medium">Risk Percentage</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold text-card-foreground text-sm">
+                            {metrics.riskPercentage.toFixed(1)}%
+                          </span>
+                          <div className={cn(
+                            "w-1.5 h-1.5 rounded-full",
+                            metrics.riskPercentage <= 1 ? "bg-success" : 
+                            metrics.riskPercentage <= 2 ? "bg-yellow-500" : "bg-destructive"
+                          )}></div>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-sm text-muted-foreground font-medium">Risk Amount</span>
+                        <span className="font-semibold text-card-foreground text-sm">
+                          ${metrics.riskAmount.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-sm text-muted-foreground font-medium">Potential Reward</span>
+                        <span className="font-semibold text-success text-sm">
+                          ${metrics.potentialReward.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-sm text-muted-foreground font-medium">Actual Return %</span>
+                        <span className={cn(
+                          "font-semibold text-sm",
+                          pnl >= 0 ? "text-success" : "text-destructive"
+                        )}>
+                          {pnl >= 0 ? '+' : ''}{metrics.actualReturnPercentage.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <Separator className="my-2" />
+                    
+                    {/* Performance Analysis */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Trade Efficiency</span>
+                        <span className={cn(
+                          "font-bold text-sm",
+                          metrics.efficiency >= 90 ? "text-success" : 
+                          metrics.efficiency >= 70 ? "text-yellow-600" : "text-destructive"
+                        )}>
+                          {metrics.efficiency.toFixed(0)}%
+                        </span>
+                      </div>
+                      <Progress value={Math.min(Math.max(metrics.efficiency, 0), 100)} className="h-2" />
+                      <p className="text-sm text-muted-foreground font-medium">
+                        {metrics.efficiency >= 90 ? "Excellent execution - trade performed as expected" : 
+                         metrics.efficiency >= 70 ? "Good execution - close to expectations" : 
+                         metrics.efficiency >= 50 ? "Fair execution - room for improvement" : 
+                         "Poor execution - significant deviation from plan"}
+                      </p>
+                    </div>
+                    
+                    {/* Risk Summary */}
+                    <div className="mt-3 p-3 bg-muted/20 rounded border border-border">
+                      <div className="text-sm text-muted-foreground space-y-2 font-medium">
+                        <div className="flex justify-between">
+                          <span>Account Balance:</span>
+                          <span className="font-mono">${activeAccount?.starting_balance.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Position Size:</span>
+                          <span className="font-mono">{metrics.riskPercentage.toFixed(1)}% of account</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Risk-Adjusted Return:</span>
+                          <span className={cn(
+                            "font-mono",
+                            pnl >= 0 ? "text-success" : "text-destructive"
+                          )}>
+                            {(metrics.actualReturnPercentage / metrics.riskPercentage).toFixed(1)}x risk
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Strategy Insights */}
-        <motion.div
+        {/* Enhanced Strategy Insights */}
+        <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
         >
           <Card className="bg-gradient-card shadow-card border-border">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-card-foreground">
-                <DollarSign className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-card-foreground text-lg font-bold">
+                <DollarSign className="h-4 w-4" />
                 Strategy Insights
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Strategy</span>
-                <span className="font-medium text-card-foreground">
-                  {trade.strategy_tag || 'No strategy tagged'}
-                </span>
-              </div>
-
-              {trade.strategy_tag && strategyCount > 0 && (
+            <CardContent className="space-y-3">
+              {/* Strategy Information */}
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Strategy Usage</span>
-                  <span className="font-medium text-card-foreground">
-                    {strategyCount} trades
-                  </span>
+                  <span className="text-muted-foreground font-medium text-sm">Trading Session</span>
+                  <Badge variant="outline" className="border-border font-semibold text-sm px-1.5 py-0.5">
+                    {trade.session}
+                  </Badge>
+                </div>
+                {trade.strategy_tag && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-medium text-sm">Strategy</span>
+                      <Badge variant="secondary" className="bg-secondary/20 text-secondary-foreground font-semibold text-sm px-1.5 py-0.5">
+                        {trade.strategy_tag}
+                      </Badge>
+                    </div>
+                    {strategyCount > 0 && (
+                      <div className="p-2 bg-muted/20 rounded border border-border">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground font-medium">Strategy Usage</span>
+                          <span className="font-bold text-card-foreground">
+                            {strategyCount} trade{strategyCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              <Separator className="my-2" />
+              
+              {/* Timing Analysis */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-card-foreground mb-2">Timing Analysis</h4>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground font-medium">Trade Date:</span>
+                        <span className="font-medium text-card-foreground">
+                          {new Date(trade.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-blue-500 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground font-medium">Logged:</span>
+                        <span className="font-medium text-card-foreground">
+                          {new Date(trade.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {' '}
+                          {new Date(trade.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-orange-500 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground font-medium">Updated:</span>
+                        <span className="font-medium text-card-foreground">
+                          {new Date(trade.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {' '}
+                          {new Date(trade.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <Separator className="my-2" />
+              
+              {/* Trade Context */}
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-semibold text-card-foreground mb-1">Trade Context</h4>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {trade.symbol && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-muted-foreground">Instrument:</span>
+                      <span className="font-mono font-bold text-card-foreground text-xs">
+                        {trade.symbol}
+                      </span>
+                    </div>
+                  )}
+                  {trade.side && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-muted-foreground">Direction:</span>
+                      <div className="flex items-center gap-1">
+                        {trade.side === "LONG" ? (
+                          <TrendingUp className="h-3 w-3 text-success" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 text-destructive" />
+                        )}
+                        <span className={cn(
+                          "font-medium text-[10px]",
+                          trade.side === "LONG" ? "text-success" : "text-destructive"
+                        )}>
+                          {trade.side}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-muted-foreground">Outcome:</span>
+                    <Badge 
+                      variant={trade.result === 'Win' ? 'default' : trade.result === 'Loss' ? 'destructive' : 'secondary'} 
+                      className="text-[10px] px-1.5 py-0.5"
+                    >
+                      {trade.result}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Quick Stats Footer */}
+              {activeAccount && (
+                <div className="mt-3 p-2 bg-muted/20 rounded border border-border">
+                  <div className="text-[9px] text-muted-foreground space-y-1">
+                    <div className="flex justify-between">
+                      <span>Account Size:</span>
+                      <span className="font-mono">${activeAccount.starting_balance.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Trade Impact:</span>
+                      <span className={cn(
+                        "font-mono",
+                        pnl >= 0 ? "text-success" : "text-destructive"
+                      )}>
+                        {((pnl / activeAccount.starting_balance) * 100).toFixed(3)}%
+                      </span>
+                    </div>
+                    {trade.notes && (
+                      <div className="flex justify-between">
+                        <span>Has Notes:</span>
+                        <span className="text-blue-500">✓ Yes</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-
-              <Separator />
-
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span className="text-sm">
-                  Logged {new Date(trade.created_at).toLocaleDateString()}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span className="text-sm">
-                  Last updated {new Date(trade.updated_at).toLocaleDateString()}
-                </span>
-              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -321,21 +651,21 @@ export default function TradeReview() {
 
       {/* Trade Notes */}
       {trade.notes && (
-        <motion.div
+        <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
           <Card className="bg-gradient-card shadow-card border-border">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-card-foreground">
-                <FileText className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-card-foreground text-sm">
+                <FileText className="h-4 w-4" />
                 Trade Notes
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-muted/20 rounded-lg p-4 border border-border">
-                <p className="text-card-foreground whitespace-pre-wrap">
+              <div className="bg-muted/20 rounded p-3 border border-border">
+                <p className="text-card-foreground text-sm whitespace-pre-wrap">
                   {trade.notes}
                 </p>
               </div>
@@ -344,32 +674,121 @@ export default function TradeReview() {
         </motion.div>
       )}
 
-      {/* Trade Image */}
-      {trade.image_url && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <Card className="bg-gradient-card shadow-card border-border">
-            <CardHeader>
-              <CardTitle className="text-card-foreground">Chart Screenshot</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative">
-                <img
-                  src={trade.image_url}
-                  alt="Trade chart screenshot"
-                  className="w-full h-auto rounded-lg border border-border"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
+      {/* Trade Screenshot Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <Card className="bg-gradient-card shadow-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-card-foreground text-sm">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Chart Screenshot
+              </div>
+              {trade.image_url && (
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0.5">
+                  Click to enlarge
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trade.image_url ? (
+              <div className="space-y-3">
+                <div className="relative group">
+                  <ImageWithFallback 
+                    src={trade.image_url} 
+                    alt="Trade chart screenshot" 
+                    className="w-full h-auto max-h-64 object-contain rounded border border-border cursor-pointer hover:opacity-90 transition-all duration-200 group-hover:shadow-lg" 
+                    onClick={() => setImageDialogOpen(true)} 
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 rounded flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <div className="bg-background/95 backdrop-blur-sm rounded-full p-1.5 shadow-lg">
+                      <ImageIcon className="h-4 w-4 text-foreground" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>Chart analysis for this trade</span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setImageDialogOpen(true)} 
+                    className="h-6 px-2 text-xs"
+                  >
+                    View Full Size
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-32 bg-muted/20 rounded border border-dashed border-border">
+                <div className="text-center space-y-1">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                  <p className="text-muted-foreground font-medium text-xs">No screenshot available</p>
+                  <p className="text-[10px] text-muted-foreground/70">Chart screenshots help with trade analysis</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Enhanced Image Modal Dialog */}
+      <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+        <DialogContent className="max-w-full max-h-[95vh] p-0 gap-0">
+          <DialogHeader className="p-4 border-b border-border bg-background/95 backdrop-blur">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2 text-sm">
+                  <ImageIcon className="h-4 w-4" />
+                  Trade Chart Screenshot
+                </DialogTitle>
+                <DialogDescription className="mt-1 text-xs">
+                  {trade?.session} session • {new Date(trade?.date || '').toLocaleDateString()}
+                </DialogDescription>
+              </div>
+              <div className="flex items-center gap-1">
+                {trade?.image_url && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => window.open(trade.image_url, '_blank')} 
+                    className="h-6 text-xs px-2"
+                  >
+                    Open in New Tab
+                  </Button>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setImageDialogOpen(false)} 
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="p-4 flex items-center justify-center bg-muted/5">
+            {trade?.image_url ? (
+              <div className="w-full max-h-[70vh] overflow-auto">
+                <ImageWithFallback 
+                  src={trade.image_url} 
+                  alt="Trade chart screenshot" 
+                  className="w-full h-auto object-contain rounded shadow-lg" 
                 />
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+            ) : (
+              <div className="text-center py-8">
+                <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground text-sm">No screenshot available for this trade</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -92,14 +91,30 @@ export function useTrades() {
     if (!activeAccount || trades.length === 0) return;
 
     try {
-      // Calculate total P&L from all trades
-      const totalPnL = trades.reduce((sum, trade) => {
-        return sum + (trade.pnl_dollar || 0);
-      }, 0);
+      // Calculate total P&L from all trades for this account
+      let totalPnL = 0;
+      
+      trades.forEach(trade => {
+        // Use actual pnl_dollar if available
+        if (trade.pnl_dollar !== null && trade.pnl_dollar !== undefined) {
+          totalPnL += trade.pnl_dollar;
+        } else if (trade.result && trade.risk_percentage) {
+          // Calculate P&L based on risk percentage and R:R ratio using starting balance
+          const riskAmount = activeAccount.starting_balance * (trade.risk_percentage / 100);
+          
+          if (trade.result.toLowerCase() === 'win') {
+            totalPnL += (riskAmount * (trade.rr || 0));
+          } else if (trade.result.toLowerCase() === 'loss') {
+            totalPnL -= riskAmount;
+          }
+          // Breakeven contributes 0 to P&L
+        }
+      });
 
       // Update account balance
       const newBalance = activeAccount.starting_balance + totalPnL;
       
+      // Only update if there's a significant change (more than $0.01)
       if (Math.abs(newBalance - activeAccount.current_balance) > 0.01) {
         await updateAccount(activeAccount.id, {
           current_balance: newBalance
@@ -156,21 +171,23 @@ export function useTrades() {
   const calculatePnL = useCallback((trade: Trade, account?: Account): number => {
     if (!account) return 0;
     
-    // Use the actual pnl_dollar if available, otherwise calculate based on R:R
+    // Use the actual pnl_dollar if available
     if (trade.pnl_dollar !== null && trade.pnl_dollar !== undefined) {
       return trade.pnl_dollar;
     }
     
-    // Calculate risk amount using trade's risk percentage or account default
-    const riskPercentage = trade.risk_percentage || account.risk_per_trade;
-    const riskAmount = account.current_balance * (riskPercentage / 100);
-    
-    if (trade.result.toLowerCase() === 'win') {
-      return riskAmount * (trade.rr || 0);
-    } else if (trade.result.toLowerCase() === 'loss') {
-      return -riskAmount;
+    // Calculate risk amount using starting balance and trade's risk percentage
+    if (trade.result && trade.risk_percentage) {
+      const riskAmount = account.starting_balance * (trade.risk_percentage / 100);
+      
+      if (trade.result.toLowerCase() === 'win') {
+        return riskAmount * (trade.rr || 0);
+      } else if (trade.result.toLowerCase() === 'loss') {
+        return -riskAmount;
+      }
     }
-    return 0; // breakeven
+    
+    return 0; // breakeven or missing data
   }, []);
 
   const calculateStats = useMemo((): TradeStats => {
@@ -196,20 +213,38 @@ export function useTrades() {
     const losses = trades.filter(t => t.result.toLowerCase() === 'loss');
     const breakevens = trades.filter(t => t.result.toLowerCase() === 'breakeven');
 
-    const winRRs = wins.map(t => t.rr || 0).filter(rr => rr > 0);
-    const lossRRs = losses.map(t => Math.abs(t.rr || 0)).filter(rr => rr > 0);
+    // Calculate total P&L using actual pnl_dollar values when available
+    const totalWinPnL = wins.reduce((sum, trade) => sum + (trade.pnl_dollar || 0), 0);
+    const totalLossPnL = losses.reduce((sum, trade) => sum + Math.abs(trade.pnl_dollar || 0), 0);
+    
+    // For R:R based calculations when pnl_dollar is not available
+    const riskAmount = activeAccount ? activeAccount.starting_balance * 0.01 : 0;
+    const winRRs = wins
+      .filter(t => t.pnl_dollar === null || t.pnl_dollar === undefined)
+      .map(t => t.rr || 0)
+      .filter(rr => rr > 0);
+      
+    const lossRRs = losses
+      .filter(t => t.pnl_dollar === null || t.pnl_dollar === undefined)
+      .map(t => 1) // Loss is always 1R
+      .filter(r => r > 0);
 
     const avgWinRR = winRRs.length > 0 ? winRRs.reduce((a, b) => a + b, 0) / winRRs.length : 0;
     const avgLossRR = lossRRs.length > 0 ? lossRRs.reduce((a, b) => a + b, 0) / lossRRs.length : 0;
     
     const totalWinRR = winRRs.reduce((a, b) => a + b, 0);
     const totalLossRR = lossRRs.reduce((a, b) => a + b, 0);
-    const profitFactor = totalLossRR > 0 ? totalWinRR / totalLossRR : totalWinRR > 0 ? Infinity : 0;
+    
+    // Calculate profit factor using actual P&L when available, fallback to R:R
+    const profitFactor = totalLossPnL > 0 ? totalWinPnL / totalLossPnL : 
+                        totalLossRR > 0 ? (totalWinRR * riskAmount) / (totalLossRR * riskAmount) : 
+                        totalWinPnL > 0 ? Infinity : 0;
 
     // Calculate streaks
     let currentWinStreak = 0;
     let currentLossStreak = 0;
     
+    // Calculate from most recent trade backwards
     for (let i = 0; i < trades.length; i++) {
       const result = trades[i].result.toLowerCase();
       if (result === 'win') {
@@ -222,13 +257,13 @@ export function useTrades() {
         currentWinStreak = 0;
         currentLossStreak = 0;
       }
-      
-      if (currentWinStreak > 0 || currentLossStreak > 0) break;
     }
 
     const topWinRR = winRRs.length > 0 ? Math.max(...winRRs) : 0;
-    const topLossRR = lossRRs.length > 0 ? Math.max(...lossRRs) : 0;
-    const totalRR = totalWinRR - totalLossRR;
+    const topLossRR = 1; // Loss is always 1R
+    
+    // Calculate total RR using actual P&L when available
+    const totalRR = totalWinPnL - totalLossPnL;
 
     return {
       totalTrades: trades.length,
@@ -245,7 +280,7 @@ export function useTrades() {
       topLossRR,
       totalRR,
     };
-  }, [trades]);
+  }, [trades, activeAccount?.starting_balance]);
 
   const getTradesByDate = useCallback(() => {
     const tradesByDate: Record<string, Trade[]> = {};

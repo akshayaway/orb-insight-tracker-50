@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAccounts } from '@/hooks/useAccounts';
 import type { Trade } from '@/hooks/useTrades';
+import { Upload, X, Image as ImageIcon } from 'lucide-react';
 
 interface EditTradeModalProps {
   trade: Trade | null;
@@ -28,13 +29,17 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
     date: '',
     symbol: '',
     side: '',
-    setup_tag: '',
+    session: '',
     strategy_tag: '',
     rr: '',
     result: '',
     notes: '',
     risk_percentage: '',
   });
+  
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (trade) {
@@ -42,15 +47,85 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
         date: new Date(trade.date).toISOString().split('T')[0],
         symbol: trade.symbol || '',
         side: trade.side || '',
-        setup_tag: trade.setup_tag || '',
+        session: trade.session || '',
         strategy_tag: trade.strategy_tag || '',
         rr: trade.rr?.toString() || '',
         result: trade.result,
         notes: trade.notes || '',
         risk_percentage: trade.risk_percentage?.toString() || '1.0',
       });
+      setExistingImageUrl(trade.image_url || null);
+      setImageFile(null);
+      setImagePreview(null);
     }
   }, [trade]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      if (!user) {
+        console.error('No authenticated user found for image upload');
+        toast({
+          title: "Authentication Error",
+          description: "You must be logged in to upload images",
+          variant: "destructive",
+        });
+        return null;
+      }
+
+      console.log('Starting image upload for user:', user.id);
+      console.log('File details:', { name: file.name, size: file.size, type: file.type });
+
+      // Create unique file name
+      const fileName = `${user.id}-${Date.now()}-${file.name}`;
+      console.log('Generated filename:', fileName);
+
+      // Upload to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("trade-screenshots")
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error("Upload error details:", uploadError);
+        toast({
+          title: "Upload Error",
+          description: `Failed to upload image: ${uploadError.message}`,
+          variant: "destructive",
+        });
+        return null;
+      }
+
+      console.log('Upload successful:', uploadData);
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("trade-screenshots")
+        .getPublicUrl(fileName);
+
+      console.log('Generated public URL:', urlData.publicUrl);
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error("Error in uploadImage:", error);
+      toast({
+        title: "Upload Error",
+        description: "An unexpected error occurred while uploading the image",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,19 +140,72 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
       return;
     }
 
+    // Validate required fields
+    if (!formData.symbol || !formData.side || !formData.result || !formData.session) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate risk percentage
+    const riskPercentage = parseFloat(formData.risk_percentage);
+    if (isNaN(riskPercentage) || riskPercentage <= 0 || riskPercentage > 100) {
+      toast({
+        title: "Error",
+        description: "Risk percentage must be between 0.1 and 100",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate R:R ratio if provided
+    if (formData.rr) {
+      const rr = parseFloat(formData.rr);
+      if (isNaN(rr) || rr <= 0) {
+        toast({
+          title: "Error",
+          description: "R:R ratio must be a positive number",
+          variant: "destructive",
+      });
+        return;
+      }
+    }
+
     try {
       setLoading(true);
+      
+      let imageUrl = existingImageUrl;
+      
+      // Upload new image if provided
+      if (imageFile) {
+        imageUrl = await uploadImage(imageFile);
+        if (!imageUrl) {
+          toast({
+            title: "Error",
+            description: "Failed to upload image",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
 
       const updateData = {
         date: new Date(formData.date).toISOString(),
         symbol: formData.symbol || null,
         side: formData.side || null,
-        setup_tag: formData.setup_tag || null,
+        session: formData.session,
+        setup_tag: formData.session, // Keep for backward compatibility
         strategy_tag: formData.strategy_tag || null,
         rr: formData.rr ? Number(formData.rr) : null,
         result: formData.result,
         notes: formData.notes || null,
-        risk_percentage: formData.risk_percentage ? Number(formData.risk_percentage) : null,
+        image_url: imageUrl, // Include image URL in update
+        risk_percentage: riskPercentage,
+        updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase
@@ -87,11 +215,18 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
 
       if (error) throw error;
 
-      toast({
-        title: "Trade Updated",
-        description: "Trade has been updated successfully.",
-      });
+      // Only show success toast with rate limiting
+      const lastToastTime = localStorage.getItem('lastTradeToastTime');
+      const now = Date.now();
+      if (!lastToastTime || now - parseInt(lastToastTime) > 3000) {
+        toast({
+          title: "Trade Updated",
+          description: "Trade has been updated successfully.",
+        });
+        localStorage.setItem('lastTradeToastTime', now.toString());
+      }
 
+      // Trigger a full refresh to recalculate account balance
       onTradeUpdated();
       onClose();
     } catch (err) {
@@ -120,7 +255,7 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date">Date *</Label>
               <Input
                 id="date"
                 type="date"
@@ -131,18 +266,19 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
             </div>
 
             <div>
-              <Label htmlFor="symbol">Symbol</Label>
+              <Label htmlFor="symbol">Symbol *</Label>
               <Input
                 id="symbol"
                 value={formData.symbol}
-                onChange={(e) => handleInputChange('symbol', e.target.value)}
+                onChange={(e) => handleInputChange('symbol', e.target.value.toUpperCase())}
                 placeholder="e.g., EURUSD, GOLD"
+                required
               />
             </div>
 
             <div>
-              <Label htmlFor="side">Side</Label>
-              <Select value={formData.side} onValueChange={(value) => handleInputChange('side', value)}>
+              <Label htmlFor="side">Side *</Label>
+              <Select value={formData.side} onValueChange={(value) => handleInputChange('side', value)} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Select side" />
                 </SelectTrigger>
@@ -154,15 +290,15 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
             </div>
 
             <div>
-              <Label htmlFor="setup_tag">Setup Tag</Label>
-              <Select value={formData.setup_tag} onValueChange={(value) => handleInputChange('setup_tag', value)}>
+              <Label htmlFor="session">Session *</Label>
+              <Select value={formData.session} onValueChange={(value) => handleInputChange('session', value)} required>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select setup" />
+                  <SelectValue placeholder="Select session" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Asia">Asia</SelectItem>
-                  <SelectItem value="NY Open">NY Open</SelectItem>
                   <SelectItem value="London">London</SelectItem>
+                  <SelectItem value="NY Open">NY Open</SelectItem>
                   <SelectItem value="NY Close">NY Close</SelectItem>
                 </SelectContent>
               </Select>
@@ -191,16 +327,17 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
             </div>
 
             <div>
-              <Label htmlFor="risk_percentage">Risk Percentage (%)</Label>
+              <Label htmlFor="risk_percentage">Risk Percentage (%) *</Label>
               <Input
                 id="risk_percentage"
                 type="number"
                 step="0.1"
                 min="0.1"
-                max="10"
+                max="100"
                 value={formData.risk_percentage}
                 onChange={(e) => handleInputChange('risk_percentage', e.target.value)}
                 placeholder="1.0"
+                required
               />
               {activeAccount && formData.risk_percentage && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -210,8 +347,8 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
             </div>
 
             <div>
-              <Label htmlFor="result">Result</Label>
-              <Select value={formData.result} onValueChange={(value) => handleInputChange('result', value)}>
+              <Label htmlFor="result">Result *</Label>
+              <Select value={formData.result} onValueChange={(value) => handleInputChange('result', value)} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Select result" />
                 </SelectTrigger>
@@ -233,6 +370,69 @@ export function EditTradeModal({ trade, isOpen, onClose, onTradeUpdated }: EditT
               placeholder="Trade notes and observations..."
               rows={3}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="screenshot">Screenshot</Label>
+            <div className="border-2 border-dashed border-border rounded-lg p-4">
+              {imagePreview ? (
+                <div className="relative">
+                  <img
+                    src={imagePreview}
+                    alt="Trade screenshot preview"
+                    className="max-h-40 mx-auto rounded"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={() => {
+                      setImageFile(null);
+                      setImagePreview(null);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : existingImageUrl ? (
+                <div className="relative">
+                  <img
+                    src={existingImageUrl}
+                    alt="Existing trade screenshot"
+                    className="max-h-40 mx-auto rounded"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={() => {
+                      setExistingImageUrl(null);
+                      setImageFile(null);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <label htmlFor="screenshot" className="cursor-pointer">
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      Click to upload screenshot
+                    </span>
+                  </div>
+                  <input
+                    id="screenshot"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-2 pt-4">
