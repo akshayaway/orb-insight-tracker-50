@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MobileHeader } from './MobileHeader';
 import { MobileMenu } from './MobileMenu';
-import { FloatingActionButton } from './FloatingActionButton';
 import { OfflineBanner } from './OfflineBanner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { useTrades } from '@/hooks/useTrades';
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -55,9 +53,6 @@ export function MobileLayout({ children }: MobileLayoutProps) {
     return pageTitles[location.pathname] || 'PropFirm Journal';
   };
 
-  // Show FAB only on Dashboard and certain pages
-  const showFAB = ['/', '/calendar'].includes(location.pathname);
-
   if (!isMobile) {
     return <>{children}</>;
   }
@@ -84,11 +79,6 @@ export function MobileLayout({ children }: MobileLayoutProps) {
       <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 pt-14 w-full">
         {children}
       </main>
-
-      {/* Floating Action Button - only on dashboard and calendar */}
-      {showFAB && (
-        <FloatingActionButton onClick={() => setShowTradeModal(true)} />
-      )}
     </div>
   );
 }
