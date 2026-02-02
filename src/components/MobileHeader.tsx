@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MobileHeaderProps {
   isMenuOpen: boolean;
@@ -9,6 +11,9 @@ interface MobileHeaderProps {
 }
 
 export function MobileHeader({ isMenuOpen, onMenuToggle, title = 'PropFirm Journal' }: MobileHeaderProps) {
+  const { user } = useAuth();
+  const isGuest = !user;
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-card border-b border-border flex items-center px-4 gap-3 safe-area-top">
       {/* Menu Button */}
@@ -42,10 +47,18 @@ export function MobileHeader({ isMenuOpen, onMenuToggle, title = 'PropFirm Journ
       <motion.h1
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
-        className="ml-1 text-sm font-semibold text-foreground truncate"
+        className="ml-1 text-sm font-semibold text-foreground truncate flex-1"
       >
         {title}
       </motion.h1>
+
+      {/* Guest Badge */}
+      {isGuest && (
+        <Badge variant="secondary" className="gap-1 text-xs shrink-0">
+          <Sparkles className="w-3 h-3" />
+          Guest
+        </Badge>
+      )}
     </header>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { DEMO_ACCOUNT } from '@/data/demoData';
 
 export interface Account {
   id: string;
@@ -23,9 +24,12 @@ export function useAccounts() {
   const [error, setError] = useState<string | null>(null);
   const [lastNotificationTime, setLastNotificationTime] = useState<number>(0);
 
+  const isGuest = !user;
+
   const fetchAccounts = useCallback(async () => {
+    // For guest mode, use demo account
     if (!user) {
-      setAccounts([]);
+      setAccounts([DEMO_ACCOUNT]);
       setLoading(false);
       return;
     }

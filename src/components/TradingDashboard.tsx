@@ -5,8 +5,10 @@ import { NewTradeModal } from './NewTradeModal';
 import { StatsCard } from './StatsCard';
 import { TradingTable } from './TradingTable';
 import { EquityChart } from './EquityChart';
+import { GuestBanner } from './GuestBanner';
 import { useTrades } from '@/hooks/useTrades';
 import { useAccounts } from '@/hooks/useAccounts';
+import { useAuth } from '@/contexts/AuthContext';
 import { TrendingUp, TrendingDown, Target, DollarSign, BarChart3, User, Twitter, MessageCircle, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subWeeks, subMonths, subYears, isSameDay, isSameWeek, isSameMonth, isSameYear, format } from 'date-fns';
@@ -15,7 +17,9 @@ export function TradingDashboard() {
   const [activeFilter, setActiveFilter] = useState('all');
   const { trades, loading, refetchTrades, calculateStats, calculatePnL, getTradesByDate } = useTrades();
   const { getActiveAccount, accounts } = useAccounts();
+  const { user } = useAuth();
   const activeAccount = getActiveAccount();
+  const isGuest = !user;
 
   const filteredTrades = useMemo(() => {
     if (!trades) return [];
@@ -266,6 +270,9 @@ export function TradingDashboard() {
         </div>
       </div>
     </div>
+
+    {/* Guest Banner */}
+    <GuestBanner />
 
     {/* Time Filter */}
     <TimeFilter activeFilter={activeFilter} onFilterChange={setActiveFilter} />

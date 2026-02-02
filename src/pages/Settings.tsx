@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,9 +7,13 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { useAccounts } from "@/hooks/useAccounts"
-import { Plus, Trash2, DollarSign, TrendingUp, Settings as SettingsIcon } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+import { useGuest } from "@/contexts/GuestContext"
+import { Plus, Trash2, DollarSign, TrendingUp, Settings as SettingsIcon, Lock, UserPlus } from "lucide-react"
 
 const Settings = () => {
+  const { user } = useAuth();
+  const { isGuest, openAuthModal } = useGuest();
   const { accounts, loading, createAccount, updateAccount, deleteAccount, setActiveAccount, getActiveAccount } = useAccounts()
   const [newAccountName, setNewAccountName] = useState("")
   const [newAccountBalance, setNewAccountBalance] = useState("10000")
@@ -17,6 +21,34 @@ const Settings = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const activeAccount = getActiveAccount()
+
+  // Show auth prompt for guests
+  if (isGuest) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
+        <Card className="max-w-md w-full text-center">
+          <CardHeader>
+            <div className="mx-auto mb-4 p-4 rounded-full bg-primary/10">
+              <Lock className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-xl">Sign In Required</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              Create a free account to access settings, manage your trading accounts, and save your progress.
+            </p>
+            <Button 
+              onClick={() => openAuthModal('Create a free account to access settings')}
+              className="w-full gap-2"
+            >
+              <UserPlus className="h-4 w-4" />
+              Sign In / Sign Up
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleCreateAccount = async () => {
     if (!newAccountName.trim()) return

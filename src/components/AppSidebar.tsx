@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { BarChart3, Calendar, Settings, HelpCircle, Plus, FileText, TrendingUp, LogOut, Twitter, MessageCircle, Users, PenTool, Bookmark } from "lucide-react";
+import { BarChart3, Calendar, Settings, HelpCircle, Plus, FileText, TrendingUp, LogOut, Twitter, MessageCircle, Users, PenTool, Bookmark, LogIn, Sparkles } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGuest } from "@/contexts/GuestContext";
 import { useAccounts } from "@/hooks/useAccounts";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useTrades } from "@/hooks/useTrades";
 
@@ -13,20 +15,27 @@ const mainItems = [
   { title: "Calendar", url: "/calendar", icon: Calendar }
 ];
 
-const otherItems = [
+const authOnlyItems = [
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Help", url: "/help", icon: HelpCircle }
+];
+
+const guestItems = [
   { title: "Help", url: "/help", icon: HelpCircle }
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const { isGuest, openAuthModal } = useGuest();
   const { getActiveAccount, refetchAccounts } = useAccounts();
   const { calculateStats } = useTrades();
   const location = useLocation();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
   const activeAccount = getActiveAccount();
+  
+  const otherItems = isGuest ? guestItems : authOnlyItems;
 
   // Listen for active account changes
   useEffect(() => {
@@ -65,8 +74,15 @@ export function AppSidebar() {
               className="w-8 h-8 rounded-lg flex-shrink-0 object-cover"
             />
             {!collapsed && (
-              <div className="min-w-0">
-                <h2 className="text-sm font-bold text-sidebar-foreground truncate">PropFirm Journal</h2>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-sidebar-foreground truncate">PropFirm Journal</h2>
+                  {isGuest && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      Guest
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-sidebar-foreground/60 truncate">Knowledge Dashboard</p>
               </div>
             )}
@@ -175,15 +191,27 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <SidebarMenuItem>
-                <SidebarMenuButton 
-                  onClick={signOut} 
-                  className="text-destructive hover:bg-destructive/10"
-                >
-                  <LogOut className="w-4 h-4 flex-shrink-0" />
-                  {!collapsed && <span className="text-sm truncate">Logout</span>}
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {isGuest ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    onClick={() => openAuthModal('Sign in to save your trades')} 
+                    className="text-primary hover:bg-primary/10"
+                  >
+                    <LogIn className="w-4 h-4 flex-shrink-0" />
+                    {!collapsed && <span className="text-sm truncate">Sign In / Sign Up</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : (
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    onClick={signOut} 
+                    className="text-destructive hover:bg-destructive/10"
+                  >
+                    <LogOut className="w-4 h-4 flex-shrink-0" />
+                    {!collapsed && <span className="text-sm truncate">Logout</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
