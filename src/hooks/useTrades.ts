@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAccounts, Account } from './useAccounts';
+import { DEMO_TRADES } from '@/data/demoData';
 
 export interface Trade {
   id: string;
@@ -51,15 +52,21 @@ export function useTrades() {
   const [error, setError] = useState<string | null>(null);
 
   const activeAccount = getActiveAccount();
+  const isGuest = !user;
   
   // Memoize filtered trades for active account only
   const trades = useMemo(() => {
+    // For guest mode, return demo trades
+    if (isGuest) {
+      return DEMO_TRADES;
+    }
     return activeAccount 
       ? allTrades.filter(trade => trade.account_id === activeAccount.id)
       : [];
-  }, [allTrades, activeAccount?.id]);
+  }, [allTrades, activeAccount?.id, isGuest]);
 
   const fetchTrades = useCallback(async () => {
+    // For guest mode, just use demo trades
     if (!user) {
       setAllTrades([]);
       setLoading(false);

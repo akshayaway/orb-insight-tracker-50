@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
-import { Edit, Trash2, Share, Image, Eye, Calendar, Clock, TrendingUp, TrendingDown } from 'lucide-react'
+import { Edit, Trash2, Share, Image, Eye, Calendar, Clock, TrendingUp, TrendingDown, Lock } from 'lucide-react'
 import { useTradeActions } from '@/hooks/useTradeActions'
+import { useAuth } from '@/contexts/AuthContext'
+import { useGuest } from '@/contexts/GuestContext'
 import { EditTradeModal } from './EditTradeModal'
 import { TradeListItem } from './TradeListItem'
 import type { Trade } from '@/hooks/useTrades'
@@ -26,6 +28,8 @@ export function TradingTable({ trades, onTradeUpdated }: TradingTableProps) {
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const navigate = useNavigate();
   const { getActiveAccount } = useAccounts();
+  const { user } = useAuth();
+  const { isGuest, openAuthModal } = useGuest();
   const activeAccount = getActiveAccount();
   const isMobile = useIsMobile();
 

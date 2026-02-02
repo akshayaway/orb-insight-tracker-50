@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGuest } from '@/contexts/GuestContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAccounts } from '@/hooks/useAccounts';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Plus, Upload, X, Image as ImageIcon, Lock } from 'lucide-react';
 
 interface NewTradeModalProps {
   onTradeAdded?: () => void;
@@ -20,6 +21,7 @@ interface NewTradeModalProps {
 
 export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalProps) {
   const { user } = useAuth();
+  const { isGuest, openAuthModal } = useGuest();
   const { getActiveAccount } = useAccounts();
   const { toast } = useToast();
   const activeAccount = getActiveAccount();
@@ -277,8 +279,20 @@ export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalPr
     return Math.round(riskAmount * 100) / 100; // Round to 2 decimal places
   };
 
+  // Handle click for guest users
+  const handleTriggerClick = () => {
+    if (isGuest) {
+      openAuthModal('Create a free account to save your trades');
+      return;
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
+    <Dialog open={isGuest ? false : open} onOpenChange={(isOpen) => {
+      if (isGuest) {
+        openAuthModal('Create a free account to save your trades');
+        return;
+      }
       setOpen(isOpen);
       if (!isOpen) {
         resetForm();
@@ -288,8 +302,10 @@ export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalPr
         <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          onClick={handleTriggerClick}
         >
           <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            {isGuest && <Lock className="w-4 h-4 mr-2" />}
             <Plus className="w-4 h-4 mr-2" />
             New Trade
           </Button>
