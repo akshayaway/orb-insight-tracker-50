@@ -108,6 +108,9 @@ export function useAccounts() {
   };
 
   const updateAccount = async (id: string, updates: Partial<Account>) => {
+    // Skip for guest mode - don't try to update demo accounts
+    if (!user) return;
+
     try {
       const { error } = await supabase
         .from('accounts')
