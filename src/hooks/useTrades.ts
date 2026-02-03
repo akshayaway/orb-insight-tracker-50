@@ -95,7 +95,8 @@ export function useTrades() {
 
   // Update account balance when trades change
   const updateAccountBalance = useCallback(async () => {
-    if (!activeAccount || trades.length === 0) return;
+    // Skip for guest mode - don't try to update demo accounts
+    if (isGuest || !activeAccount || trades.length === 0) return;
 
     try {
       // Calculate total P&L from all trades for this account
@@ -136,12 +137,12 @@ export function useTrades() {
     fetchTrades();
   }, [user?.id]);
 
-  // Update account balance when trades change
+  // Update account balance when trades change (skip for guest mode)
   useEffect(() => {
-    if (trades.length > 0 && activeAccount) {
+    if (!isGuest && trades.length > 0 && activeAccount) {
       updateAccountBalance();
     }
-  }, [trades, activeAccount?.id, updateAccountBalance]);
+  }, [trades, activeAccount?.id, updateAccountBalance, isGuest]);
 
   // Real-time subscription for trades
   useEffect(() => {
