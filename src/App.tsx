@@ -7,9 +7,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { GuestProvider } from "@/contexts/GuestContext";
 import { SplashScreen } from "@/components/SplashScreen";
 import { MobileLayout } from "@/components/MobileLayout";
+import { AuthModal } from "@/components/AuthModal";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeCapacitor } from "@/lib/capacitor";
 import Index from "./pages/Index";
@@ -110,23 +111,26 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            {/* Splash Screen */}
-            <SplashScreen isVisible={showSplash} />
+            <GuestProvider>
+              {/* Splash Screen */}
+              <SplashScreen isVisible={showSplash} />
+              
+              {/* Auth Modal for Guest Users */}
+              <AuthModal />
 
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/trade/:tradeId" element={<PublicTrade />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
+              <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/trade/:tradeId" element={<PublicTrade />} />
+                <Route
+                  path="/*"
+                  element={
                     <DesktopLayout>
                       <AppRoutes />
                     </DesktopLayout>
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
+                  }
+                />
+              </Routes>
+            </GuestProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

@@ -1,0 +1,236 @@
+import { Trade } from '@/hooks/useTrades';
+import { Account } from '@/hooks/useAccounts';
+
+// Demo account for guest users
+export const DEMO_ACCOUNT: Account = {
+  id: 'demo-account-001',
+  user_id: 'demo-user',
+  name: 'Demo Account',
+  starting_balance: 100000,
+  current_balance: 108540.25,
+  risk_per_trade: 1.0,
+  is_active: true,
+  created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+// Generate dates for the last 30 days
+const generateDate = (daysAgo: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString();
+};
+
+// Demo trades for guest users
+export const DEMO_TRADES: Trade[] = [
+  {
+    id: 'demo-trade-001',
+    date: generateDate(0),
+    session: 'London',
+    symbol: 'EURUSD',
+    side: 'LONG',
+    rr: 2.5,
+    result: 'Win',
+    notes: 'Clean breakout from consolidation zone',
+    risk_percentage: 1.0,
+    pnl_dollar: 2500,
+    account_id: 'demo-account-001',
+    created_at: generateDate(0),
+    updated_at: generateDate(0),
+  },
+  {
+    id: 'demo-trade-002',
+    date: generateDate(1),
+    session: 'New York',
+    symbol: 'XAUUSD',
+    side: 'SHORT',
+    rr: 1.8,
+    result: 'Win',
+    notes: 'Strong rejection from resistance',
+    risk_percentage: 1.0,
+    pnl_dollar: 1800,
+    account_id: 'demo-account-001',
+    created_at: generateDate(1),
+    updated_at: generateDate(1),
+  },
+  {
+    id: 'demo-trade-003',
+    date: generateDate(2),
+    session: 'Asia',
+    symbol: 'GBPJPY',
+    side: 'LONG',
+    rr: 1.0,
+    result: 'Loss',
+    notes: 'Stopped out before continuation',
+    risk_percentage: 1.0,
+    pnl_dollar: -1000,
+    account_id: 'demo-account-001',
+    created_at: generateDate(2),
+    updated_at: generateDate(2),
+  },
+  {
+    id: 'demo-trade-004',
+    date: generateDate(3),
+    session: 'London',
+    symbol: 'USDJPY',
+    side: 'SHORT',
+    rr: 3.0,
+    result: 'Win',
+    notes: 'Perfect entry on retest',
+    risk_percentage: 1.0,
+    pnl_dollar: 3000,
+    account_id: 'demo-account-001',
+    created_at: generateDate(3),
+    updated_at: generateDate(3),
+  },
+  {
+    id: 'demo-trade-005',
+    date: generateDate(4),
+    session: 'New York',
+    symbol: 'EURUSD',
+    side: 'LONG',
+    rr: 0,
+    result: 'Breakeven',
+    notes: 'Moved to BE early',
+    risk_percentage: 1.0,
+    pnl_dollar: 0,
+    account_id: 'demo-account-001',
+    created_at: generateDate(4),
+    updated_at: generateDate(4),
+  },
+  {
+    id: 'demo-trade-006',
+    date: generateDate(5),
+    session: 'London',
+    symbol: 'GBPUSD',
+    side: 'SHORT',
+    rr: 2.0,
+    result: 'Win',
+    notes: 'News catalyst trade',
+    risk_percentage: 1.0,
+    pnl_dollar: 2000,
+    account_id: 'demo-account-001',
+    created_at: generateDate(5),
+    updated_at: generateDate(5),
+  },
+  {
+    id: 'demo-trade-007',
+    date: generateDate(7),
+    session: 'Asia',
+    symbol: 'AUDUSD',
+    side: 'LONG',
+    rr: 1.5,
+    result: 'Win',
+    notes: 'Range trade setup',
+    risk_percentage: 1.0,
+    pnl_dollar: 1500,
+    account_id: 'demo-account-001',
+    created_at: generateDate(7),
+    updated_at: generateDate(7),
+  },
+  {
+    id: 'demo-trade-008',
+    date: generateDate(8),
+    session: 'New York',
+    symbol: 'XAUUSD',
+    side: 'LONG',
+    rr: 1.0,
+    result: 'Loss',
+    notes: 'False breakout',
+    risk_percentage: 1.0,
+    pnl_dollar: -1000,
+    account_id: 'demo-account-001',
+    created_at: generateDate(8),
+    updated_at: generateDate(8),
+  },
+  {
+    id: 'demo-trade-009',
+    date: generateDate(10),
+    session: 'London',
+    symbol: 'EURUSD',
+    side: 'SHORT',
+    rr: 2.2,
+    result: 'Win',
+    notes: 'Trend continuation',
+    risk_percentage: 1.0,
+    pnl_dollar: 2200,
+    account_id: 'demo-account-001',
+    created_at: generateDate(10),
+    updated_at: generateDate(10),
+  },
+  {
+    id: 'demo-trade-010',
+    date: generateDate(12),
+    session: 'New York',
+    symbol: 'USDJPY',
+    side: 'LONG',
+    rr: 1.0,
+    result: 'Loss',
+    notes: 'Reversal pattern failed',
+    risk_percentage: 1.0,
+    pnl_dollar: -1000,
+    account_id: 'demo-account-001',
+    created_at: generateDate(12),
+    updated_at: generateDate(12),
+  },
+  {
+    id: 'demo-trade-011',
+    date: generateDate(14),
+    session: 'Asia',
+    symbol: 'NZDUSD',
+    side: 'SHORT',
+    rr: 1.8,
+    result: 'Win',
+    notes: 'Clean setup',
+    risk_percentage: 1.0,
+    pnl_dollar: 1800,
+    account_id: 'demo-account-001',
+    created_at: generateDate(14),
+    updated_at: generateDate(14),
+  },
+  {
+    id: 'demo-trade-012',
+    date: generateDate(18),
+    session: 'London',
+    symbol: 'GBPJPY',
+    side: 'LONG',
+    rr: 2.8,
+    result: 'Win',
+    notes: 'Trend following',
+    risk_percentage: 1.0,
+    pnl_dollar: 2800,
+    account_id: 'demo-account-001',
+    created_at: generateDate(18),
+    updated_at: generateDate(18),
+  },
+];
+
+// Calculate demo stats
+export const calculateDemoStats = () => {
+  const trades = DEMO_TRADES;
+  const wins = trades.filter(t => t.result.toLowerCase() === 'win');
+  const losses = trades.filter(t => t.result.toLowerCase() === 'loss');
+  const breakevens = trades.filter(t => t.result.toLowerCase() === 'breakeven');
+
+  const totalWinPnL = wins.reduce((sum, t) => sum + (t.pnl_dollar || 0), 0);
+  const totalLossPnL = Math.abs(losses.reduce((sum, t) => sum + (t.pnl_dollar || 0), 0));
+
+  const winRRs = wins.map(t => t.rr || 0).filter(rr => rr > 0);
+  const avgWinRR = winRRs.length > 0 ? winRRs.reduce((a, b) => a + b, 0) / winRRs.length : 0;
+
+  return {
+    totalTrades: trades.length,
+    wins: wins.length,
+    losses: losses.length,
+    breakevens: breakevens.length,
+    winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
+    avgWinRR,
+    avgLossRR: 1,
+    profitFactor: totalLossPnL > 0 ? totalWinPnL / totalLossPnL : totalWinPnL > 0 ? Infinity : 0,
+    currentWinStreak: 1,
+    currentLossStreak: 0,
+    topWinRR: Math.max(...winRRs, 0),
+    topLossRR: 1,
+    totalRR: totalWinPnL - totalLossPnL,
+  };
+};
