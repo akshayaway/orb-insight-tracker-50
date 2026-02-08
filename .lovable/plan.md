@@ -1,362 +1,296 @@
 
-# Mobile App Conversion Plan: PropFirm Knowledge Journal
+
+# Discord Verification System Implementation Plan
 
 ## Overview
 
-This plan converts the existing PropFirm Knowledge Journal web application into a production-ready mobile app for Android and iOS using Capacitor. The existing codebase, Supabase backend, and all features will be preserved while adding mobile-specific optimizations.
+This plan implements a secure Discord server membership verification system for PropFirm Knowledge Journal. Users must join and verify their Discord membership before accessing full journal features (add/edit/delete trades).
 
 ---
 
-## Phase 1: Capacitor Configuration and Mobile Wrapper
+## Architecture Diagram
 
-### 1.1 Update Capacitor Configuration
-**File: `capacitor.config.ts`**
-- Add server configuration for hot reload during development
-- Configure splash screen settings for native splash
-- Add status bar and safe area configurations
-- Enable hardware acceleration for WebView
-
-### 1.2 Create Capacitor Plugins Setup
-**New file: `src/lib/capacitor.ts`**
-- Initialize Capacitor plugins (StatusBar, SplashScreen, Haptics, App, Keyboard)
-- Create utility functions for native features
-- Handle platform detection (iOS/Android/Web)
-
----
-
-## Phase 2: Native Splash Screen with Smooth Loading
-
-### 2.1 Create Splash Screen Component
-**New file: `src/components/SplashScreen.tsx`**
-- Dark minimal design with PropFirm Knowledge logo centered
-- Fade and scale animation using Framer Motion
-- Auto-hide after auth check (under 3 seconds)
-- Seamless transition to dashboard or login
-
-### 2.2 Update App Entry Point
-**File: `src/App.tsx`**
-- Integrate splash screen as initial view
-- Check auth state during splash
-- Route to Dashboard (authenticated) or Login (unauthenticated)
-- Prevent white flash between states
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           User Flow                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   ┌──────────┐     ┌─────────────┐     ┌──────────────┐                 │
+│   │  User    │────>│  Click      │────>│  Discord     │                 │
+│   │  Login   │     │  "Verify"   │     │  OAuth Page  │                 │
+│   └──────────┘     └─────────────┘     └──────────────┘                 │
+│                                               │                          │
+│                                               v                          │
+│   ┌──────────────────────────────────────────────────────────┐          │
+│   │                Edge Function: discord-auth                │          │
+│   │  1. Exchange code for token                               │          │
+│   │  2. Get Discord user ID                                   │          │
+│   │  3. Check guild membership via Bot API                    │          │
+│   │  4. Update user_profiles with discord_verified            │          │
+│   └──────────────────────────────────────────────────────────┘          │
+│                                               │                          │
+│                                               v                          │
+│   ┌──────────────┐     ┌──────────────────────────────────┐             │
+│   │  Verified    │<────│  Redirect back to app             │             │
+│   │  Full Access │     │  with verification status         │             │
+│   └──────────────┘     └──────────────────────────────────┘             │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Phase 3: Authentication Persistence
+## Phase 1: Database Schema Updates
 
-### 3.1 Enhance Auth Context
-**File: `src/contexts/AuthContext.tsx`**
-- Configure Supabase for persistent sessions on mobile
-- Add proper session verification on app launch
-- Implement token refresh handling
-- Add loading state management during auth checks
+### 1.1 Modify `user_profiles` Table
 
-### 3.2 Update Protected Route
-**File: `src/components/ProtectedRoute.tsx`**
-- Show loading indicator during session verification
-- Prevent flash between login and dashboard
-- Handle expired tokens gracefully
+Add Discord verification fields:
 
----
+| Column | Type | Description |
+|--------|------|-------------|
+| discord_id | TEXT | User's Discord ID (unique) |
+| discord_username | TEXT | Discord username for display |
+| discord_verified | BOOLEAN | Verification status (default: false) |
+| discord_verified_at | TIMESTAMPTZ | When verification occurred |
 
-## Phase 4: Mobile Navigation with Burger Menu
+### 1.2 Update RLS Policies
 
-### 4.1 Create Mobile Header Component
-**New file: `src/components/MobileHeader.tsx`**
-- Fixed top header bar with app title
-- Burger menu icon on the left
-- Smooth hamburger-to-X animation
+Modify existing RLS policies on `trades` and `accounts` tables to require Discord verification for write operations:
 
-### 4.2 Create Mobile Slide-in Menu
-**New file: `src/components/MobileMenu.tsx`**
-- Slide-in navigation from left side
-- Menu items: Dashboard, Stats, Calendar, Trade History, Settings, Logout
-- Shadow backdrop overlay
-- Close on item selection or outside tap
-- Smooth 200ms slide animation
+- **INSERT/UPDATE/DELETE**: Only allow if user's `discord_verified = true`
+- **SELECT**: Unchanged (users can still view their data)
 
-### 4.3 Create Responsive Layout Wrapper
-**New file: `src/components/MobileLayout.tsx`**
-- Detect mobile vs desktop viewport
-- Render mobile header + menu for mobile
-- Keep desktop sidebar for larger screens
-- Handle safe areas for notch devices
-
-### 4.4 Update Main App Layout
-**File: `src/App.tsx`**
-- Integrate MobileLayout wrapper
-- Conditional rendering based on viewport
-- Preserve existing desktop sidebar behavior
+Create a security definer function to check Discord verification status without causing RLS recursion.
 
 ---
 
-## Phase 5: Touch-Friendly UI Improvements
+## Phase 2: Edge Function - Discord Authentication
 
-### 5.1 Update Global Styles
-**File: `src/index.css`**
-- Add minimum touch target size (44px) utility classes
-- Enhance font sizes for mobile readability
-- High contrast text improvements
-- Mobile-specific spacing utilities
+### 2.1 Create `discord-auth` Edge Function
 
-### 5.2 Update StatsCard Component
-**File: `src/components/StatsCard.tsx`**
-- Larger font sizes for important stats
-- Better touch targets
-- Improved spacing for mobile
+**Location**: `supabase/functions/discord-auth/index.ts`
 
-### 5.3 Update Button Components
-- Add mobile-specific variants with larger touch areas
-- Enhanced active states for touch feedback
+**Endpoints**:
+- `GET /discord-auth?action=login` - Redirect to Discord OAuth
+- `GET /discord-auth?code=xxx` - Handle OAuth callback
+- `GET /discord-auth?action=check` - Re-verify membership status
 
----
+**Flow**:
+1. User clicks "Verify with Discord"
+2. Redirect to Discord OAuth with scopes: `identify`, `guilds.members.read`
+3. Discord redirects back with authorization code
+4. Edge function exchanges code for access token
+5. Fetch user's Discord ID using access token
+6. Use Bot token to call `GET /guilds/{guild_id}/members/{user_id}`
+7. If member exists (200 response): set `discord_verified = true`
+8. If not member (404 response): return error prompting to join server
+9. Redirect back to app with success/failure status
 
-## Phase 6: Mobile Dashboard Layout
+### 2.2 Required Secrets
 
-### 6.1 Restructure Trading Dashboard
-**File: `src/components/TradingDashboard.tsx`**
-- Stack cards vertically on mobile
-- Add skeleton loaders for data loading
-- Responsive grid adjustments
-- Optimize equity chart for mobile
-
-### 6.2 Update TimeFilter for Mobile
-**File: `src/components/TimeFilter.tsx`**
-- Convert to horizontal scroll chips
-- Add smooth scroll behavior
-- Active state indicators
-
-### 6.3 Add Floating Action Button
-**New file: `src/components/FloatingActionButton.tsx`**
-- Fixed position "+" button for quick trade logging
-- Appears on Dashboard and Trade History
-- Smooth scale animation on tap
+| Secret Name | Description |
+|-------------|-------------|
+| DISCORD_CLIENT_ID | OAuth application client ID |
+| DISCORD_CLIENT_SECRET | OAuth application secret |
+| DISCORD_BOT_TOKEN | Bot token with Server Members Intent |
+| DISCORD_GUILD_ID | Your Discord server ID |
 
 ---
 
-## Phase 7: Trade Logging Modal Optimization
+## Phase 3: Frontend Components
 
-### 7.1 Update NewTradeModal for Mobile
-**File: `src/components/NewTradeModal.tsx`**
-- Full-screen modal on mobile
-- Large inputs and touch-friendly dropdowns
-- Camera/gallery image upload
-- Prevent double submission
-- Handle back button/swipe to close
+### 3.1 Discord Verification Context
 
-### 7.2 Add Form Submission Guard
-- Loading state during upload
-- Success toast on save
-- Prevent accidental back exit
+**File**: `src/contexts/DiscordContext.tsx`
 
----
+Manages:
+- `discordVerified`: boolean state
+- `discordUsername`: display name
+- `isVerifying`: loading state
+- `checkVerification()`: fetch verification status
+- `startVerification()`: initiate OAuth flow
 
-## Phase 8: Trade History Optimization
+### 3.2 Discord Verification Banner
 
-### 8.1 Implement Infinite Scroll
-**File: `src/components/TradingTable.tsx`**
-- Replace table with mobile-friendly list
-- Infinite scroll with pagination
-- Color-coded result indicators (green/red)
-- Lightweight list items
+**File**: `src/components/DiscordVerificationBanner.tsx`
 
-### 8.2 Add Trade List Item Component
-**New file: `src/components/TradeListItem.tsx`**
-- Mobile-optimized trade card
-- Symbol, side, result, P&L display
-- Tap to view full details
-- Swipe actions for edit/delete (optional)
+States:
+1. **Locked** (not verified):
+   - "Join Discord to Unlock Full Access"
+   - "Join Discord" button (link to invite)
+   - "Verify with Discord" button
 
----
+2. **Verifying**:
+   - Loading spinner
+   - "Checking your Discord status..."
 
-## Phase 9: Trade Review Mobile Experience
+3. **Verified**:
+   - Badge: "Discord Verified ✓"
+   - No further prompts
 
-### 9.1 Update TradeReview Page
-**File: `src/pages/TradeReview.tsx`**
-- Stacked card layout for metrics
-- Pinch-to-zoom on screenshots
-- Lazy load images
-- Mobile-friendly header with back button
+### 3.3 Update Existing Components
 
----
+**Modify action interception in**:
+- `NewTradeModal.tsx` - Check Discord verification before allowing trade entry
+- `EditTradeModal.tsx` - Check verification before allowing edits
+- `TradingTable.tsx` - Check verification for delete actions
+- `Settings.tsx` - Check verification for account management
 
-## Phase 10: Mobile Calendar View
+**Update flow**:
+```text
+Guest User → Show AuthModal (login/signup)
+Logged In + Not Discord Verified → Show Discord Verification prompt
+Logged In + Discord Verified → Allow full access
+```
 
-### 10.1 Update Calendar Component
-**File: `src/pages/Calendar.tsx`**
-- Optimize grid for mobile screens
-- Colored P&L markers on days
-- Tap day to show bottom sheet with trades
-- Smooth month navigation
+### 3.4 UI Updates
 
-### 10.2 Create Day Detail Bottom Sheet
-**New file: `src/components/DayTradesSheet.tsx`**
-- Bottom sheet component for day details
-- List of trades for selected day
-- Swipe to dismiss
+**MobileHeader.tsx** & **AppSidebar.tsx**:
+- Show Discord verification badge when verified
+- Show "Verify Discord" link when not verified
+
+**MobileMenu.tsx**:
+- Add "Discord Verification" menu item
+- Show verification status
 
 ---
 
-## Phase 11: Performance Optimizations
+## Phase 4: Security Implementation
 
-### 11.1 Code Splitting
-**File: `vite.config.ts`**
-- Add manual chunk splitting for vendors
-- Lazy load route components
-- Optimize bundle size
+### 4.1 RLS Policy Updates
 
-### 11.2 Query Caching
-**File: `src/App.tsx`**
-- Configure React Query for memory caching
-- Set appropriate stale times
-- Enable background refetching
+```sql
+-- Security definer function to check Discord verification
+CREATE OR REPLACE FUNCTION public.is_discord_verified(user_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (SELECT discord_verified FROM public.user_profiles WHERE user_id = user_uuid),
+    false
+  );
+$$;
 
-### 11.3 Component Lazy Loading
-- Wrap heavy components with React.lazy
-- Add Suspense boundaries with skeleton loaders
+-- Update trades INSERT policy
+DROP POLICY IF EXISTS "Users can create their own trades" ON trades;
+CREATE POLICY "Users can create their own trades" ON trades
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id 
+    AND public.is_discord_verified(auth.uid())
+  );
 
----
+-- Similar updates for UPDATE and DELETE policies
+```
 
-## Phase 12: Error Handling and Offline Support
+### 4.2 Edge Function Security
 
-### 12.1 Enhance Error Boundary
-**File: `src/components/ErrorBoundary.tsx`**
-- Mobile-friendly error display
-- Retry button with network check
-- Prevent crash to blank screen
-
-### 12.2 Create Network Status Handler
-**New file: `src/hooks/useNetworkStatus.ts`**
-- Detect online/offline status
-- Show offline banner when disconnected
-- Queue actions for offline mode
-
-### 12.3 Create Offline Banner
-**New file: `src/components/OfflineBanner.tsx`**
-- Small banner at top when offline
-- Auto-hide when connection restored
-
----
-
-## Phase 13: Smooth Animations
-
-### 13.1 Update Animation Configuration
-**File: `tailwind.config.ts`**
-- Ensure animations are under 200-250ms
-- Add mobile-specific transition classes
-
-### 13.2 Optimize Framer Motion Usage
-- Page transition animations
-- Menu slide animations
-- Modal open/close
-- Remove heavy effects that cause lag
+- Verify JWT tokens for authenticated requests
+- Validate Discord OAuth state parameter to prevent CSRF
+- Rate limit verification attempts
+- Log all verification attempts for audit
 
 ---
 
-## Phase 14: Mobile-Specific Features
+## Phase 5: User Experience
 
-### 14.1 Add Pull-to-Refresh
-**New file: `src/hooks/usePullToRefresh.ts`**
-- Custom hook for pull-to-refresh
-- Apply to Dashboard and Trade History
+### 5.1 Verification Flow UX
 
-### 14.2 Add Haptic Feedback
-**New file: `src/lib/haptics.ts`**
-- Utility for haptic feedback
-- Trigger on save trade, delete, important actions
+1. **After Login**:
+   - Check `discord_verified` status
+   - If not verified, show non-blocking banner
 
-### 14.3 Remember Last Tab
-**New file: `src/hooks/useLastRoute.ts`**
-- Store last visited route in localStorage
-- Restore on next app launch
+2. **On Restricted Action**:
+   - Show modal: "Discord Verification Required"
+   - Benefits list: "Track stats", "Access history", etc.
+   - Two buttons: "Join Discord Server", "I've Joined - Verify"
 
----
+3. **OAuth Flow**:
+   - Opens in new window (desktop) or in-app browser (mobile)
+   - Auto-closes and refreshes status on completion
 
-## Phase 15: Final Build Configuration
+4. **Success State**:
+   - Toast: "Discord Verified! Full access unlocked."
+   - Badge appears in header
+   - All features immediately available
 
-### 15.1 Update Manifest
-**File: `public/manifest.json`**
-- Update with proper app name
-- Dark theme colors
-- Correct icon references
+### 5.2 Error Handling
 
-### 15.2 Update Index.html
-**File: `index.html`**
-- Add mobile-specific meta tags
-- Status bar configuration
-- Prevent zoom/scale issues
-
-### 15.3 Android Build Configuration
-**Files: `android/app/build.gradle`, `android/variables.gradle`**
-- Verify signing configuration
-- Set proper version codes
-- Enable ProGuard for release
+| Error | User Message |
+|-------|--------------|
+| Not in server | "Please join our Discord server first, then try again." |
+| OAuth denied | "Discord authorization was cancelled." |
+| Network error | "Connection issue. Please try again." |
+| Rate limited | "Too many attempts. Please wait a moment." |
 
 ---
 
 ## Technical Details
 
-### New Files to Create
-1. `src/lib/capacitor.ts` - Capacitor plugin initialization
-2. `src/components/SplashScreen.tsx` - Native-like splash screen
-3. `src/components/MobileHeader.tsx` - Mobile header bar
-4. `src/components/MobileMenu.tsx` - Slide-in navigation
-5. `src/components/MobileLayout.tsx` - Responsive layout wrapper
-6. `src/components/FloatingActionButton.tsx` - Quick trade FAB
-7. `src/components/TradeListItem.tsx` - Mobile trade list item
-8. `src/components/DayTradesSheet.tsx` - Calendar day details
-9. `src/components/OfflineBanner.tsx` - Offline indicator
-10. `src/hooks/useNetworkStatus.ts` - Network detection
-11. `src/hooks/usePullToRefresh.ts` - Pull refresh
-12. `src/hooks/useLastRoute.ts` - Route persistence
-13. `src/lib/haptics.ts` - Haptic feedback utilities
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `supabase/functions/discord-auth/index.ts` | OAuth handling and membership verification |
+| `src/contexts/DiscordContext.tsx` | Discord verification state management |
+| `src/components/DiscordVerificationBanner.tsx` | Verification UI banner |
+| `src/components/DiscordVerificationModal.tsx` | Modal for verification prompts |
+| `src/hooks/useDiscordVerification.ts` | Hook for verification logic |
 
 ### Files to Modify
-1. `capacitor.config.ts` - Mobile configuration
-2. `src/App.tsx` - Layout and routing
-3. `src/contexts/AuthContext.tsx` - Session persistence
-4. `src/components/ProtectedRoute.tsx` - Loading states
-5. `src/components/TradingDashboard.tsx` - Mobile layout
-6. `src/components/TimeFilter.tsx` - Horizontal scroll
-7. `src/components/NewTradeModal.tsx` - Full-screen modal
-8. `src/components/TradingTable.tsx` - Mobile list view
-9. `src/pages/TradeReview.tsx` - Mobile optimization
-10. `src/pages/Calendar.tsx` - Mobile calendar
-11. `src/components/StatsCard.tsx` - Touch-friendly
-12. `src/index.css` - Mobile utilities
-13. `tailwind.config.ts` - Animation timing
-14. `vite.config.ts` - Code splitting
-15. `public/manifest.json` - App metadata
-16. `index.html` - Mobile meta tags
 
-### Dependencies to Add
-- `@capacitor/status-bar` - Status bar control
-- `@capacitor/splash-screen` - Native splash
-- `@capacitor/haptics` - Haptic feedback
-- `@capacitor/app` - App lifecycle
-- `@capacitor/keyboard` - Keyboard handling
+| File | Changes |
+|------|---------|
+| `src/App.tsx` | Add DiscordProvider |
+| `src/contexts/GuestContext.tsx` | Integrate Discord verification check |
+| `src/components/NewTradeModal.tsx` | Add Discord verification gate |
+| `src/components/EditTradeModal.tsx` | Add Discord verification gate |
+| `src/components/TradingTable.tsx` | Add Discord verification gate for delete |
+| `src/components/MobileHeader.tsx` | Show Discord badge |
+| `src/components/AppSidebar.tsx` | Add Discord verification status |
+| `src/components/MobileMenu.tsx` | Add Discord verification menu item |
+| `src/pages/Settings.tsx` | Add Discord verification gate |
+
+### Database Migrations
+
+1. Add columns to `user_profiles` table
+2. Create `is_discord_verified` function
+3. Update RLS policies on `trades` and `accounts`
 
 ---
 
-## Post-Implementation Steps (For User)
+## Implementation Order
 
-1. **Export to GitHub** via Lovable's "Export to GitHub" button
-2. **Clone locally** and run `npm install`
-3. **Add platforms**: `npx cap add ios` and/or `npx cap add android`
-4. **Update native projects**: `npx cap update`
-5. **Build web assets**: `npm run build`
-6. **Sync to native**: `npx cap sync`
-7. **Run on device**: `npx cap run android` or `npx cap run ios`
-8. **Generate release build**: Follow existing `RELEASE_AND_PLAYSTORE.md` guide
+1. **Request Discord API secrets** - Required before any implementation
+2. **Database migration** - Add Discord fields to user_profiles
+3. **Edge function** - Create discord-auth function
+4. **Frontend context** - Create DiscordContext
+5. **UI components** - Banner, modal, badges
+6. **Gate modifications** - Update existing components
+7. **RLS policy updates** - Enforce at database level
+8. **Testing** - End-to-end verification flow
 
 ---
 
-## Quality Checklist
+## Required User Action Before Implementation
 
-- [ ] No lag when scrolling lists or opening trades
-- [ ] Text and icons clearly visible on all phone sizes
-- [ ] Clean, minimal, professional dark UI
-- [ ] Burger menu navigation feels smooth and native
-- [ ] App works reliably on low and mid-range devices
-- [ ] Launch time under 3 seconds
-- [ ] No console errors in release build
+You need to set up a Discord Developer Application:
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application
+3. Go to **OAuth2** section:
+   - Add redirect URL: `https://notyhakhjrmzhnnjbiqp.supabase.co/functions/v1/discord-auth`
+   - Copy **Client ID** and **Client Secret**
+4. Go to **Bot** section:
+   - Create a bot
+   - Enable **Server Members Intent** under Privileged Gateway Intents
+   - Copy **Bot Token**
+5. Get your Discord Server (Guild) ID:
+   - Enable Developer Mode in Discord settings
+   - Right-click your server → Copy ID
+
+Once you have these credentials, I'll securely store them as Supabase secrets and proceed with implementation.
+
