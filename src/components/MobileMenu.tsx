@@ -11,10 +11,15 @@ import {
   Lightbulb,
   LogIn,
   UserPlus,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  Users,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuest } from '@/contexts/GuestContext';
+import { useDiscord } from '@/contexts/DiscordContext';
 import { cn } from '@/lib/utils';
 import { tapFeedback } from '@/lib/haptics';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +53,7 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { isGuest, openAuthModal } = useGuest();
+  const { discordVerified, isVerifying, startVerification } = useDiscord();
   
   const menuItems = isGuest ? guestMenuItems : authMenuItems;
 
@@ -137,6 +143,37 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                   })}
                 </div>
               </div>
+
+              {/* Discord Verification Status */}
+              {!isGuest && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  {discordVerified ? (
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[hsl(235,86%,65%)]/10">
+                      <ShieldCheck className="w-4 h-4 text-[hsl(235,86%,65%)]" />
+                      <span className="text-sm font-medium text-[hsl(235,86%,65%)]">Discord Verified</span>
+                    </div>
+                  ) : (
+                    <motion.button
+                      onClick={async () => {
+                        await tapFeedback();
+                        startVerification();
+                      }}
+                      whileTap={{ scale: 0.98 }}
+                      disabled={isVerifying}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-[hsl(235,86%,65%)]/10 text-[hsl(235,86%,65%)] transition-colors touch-target"
+                    >
+                      {isVerifying ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Users className="w-5 h-5" />
+                      )}
+                      <span className="font-medium text-sm">
+                        {isVerifying ? 'Verifying...' : 'Verify with Discord'}
+                      </span>
+                    </motion.button>
+                  )}
+                </div>
+              )}
 
               {/* Auth Section for Guests OR Logout for Authenticated */}
               <div className="p-4 border-t border-border safe-area-bottom">

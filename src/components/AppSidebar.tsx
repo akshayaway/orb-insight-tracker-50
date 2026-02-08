@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { BarChart3, Calendar, Settings, HelpCircle, Plus, FileText, TrendingUp, LogOut, Twitter, MessageCircle, Users, PenTool, Bookmark, LogIn, Sparkles } from "lucide-react";
+import { BarChart3, Calendar, Settings, HelpCircle, Plus, FileText, TrendingUp, LogOut, Twitter, MessageCircle, Users, PenTool, Bookmark, LogIn, Sparkles, ShieldCheck } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGuest } from "@/contexts/GuestContext";
+import { useDiscord } from "@/contexts/DiscordContext";
 import { useAccounts } from "@/hooks/useAccounts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { user, signOut } = useAuth();
   const { isGuest, openAuthModal } = useGuest();
+  const { discordVerified, discordUsername } = useDiscord();
   const { getActiveAccount, refetchAccounts } = useAccounts();
   const { calculateStats } = useTrades();
   const location = useLocation();
@@ -84,6 +86,12 @@ export function AppSidebar() {
                   )}
                 </div>
                 <p className="text-xs text-sidebar-foreground/60 truncate">Knowledge Dashboard</p>
+                {!isGuest && discordVerified && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-[hsl(235,86%,65%)]/10 text-[hsl(235,86%,65%)] border-[hsl(235,86%,65%)]/20">
+                    <ShieldCheck className="w-2.5 h-2.5 mr-0.5" />
+                    Verified
+                  </Badge>
+                )}
               </div>
             )}
           </div>

@@ -8,6 +8,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { GuestProvider } from "@/contexts/GuestContext";
+import { DiscordProvider } from "@/contexts/DiscordContext";
 import { SplashScreen } from "@/components/SplashScreen";
 import { MobileLayout } from "@/components/MobileLayout";
 import { AuthModal } from "@/components/AuthModal";
@@ -112,24 +113,26 @@ const App = () => {
         <BrowserRouter>
           <AuthProvider>
             <GuestProvider>
-              {/* Splash Screen */}
-              <SplashScreen isVisible={showSplash} />
-              
-              {/* Auth Modal for Guest Users */}
-              <AuthModal />
+              <DiscordProvider>
+                {/* Splash Screen */}
+                <SplashScreen isVisible={showSplash} />
+                
+                {/* Auth Modal for Guest Users */}
+                <AuthModal />
 
-              <Routes>
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/trade/:tradeId" element={<PublicTrade />} />
-                <Route
-                  path="/*"
-                  element={
-                    <DesktopLayout>
-                      <AppRoutes />
-                    </DesktopLayout>
-                  }
-                />
-              </Routes>
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/trade/:tradeId" element={<PublicTrade />} />
+                  <Route
+                    path="/*"
+                    element={
+                      <DesktopLayout>
+                        <AppRoutes />
+                      </DesktopLayout>
+                    }
+                  />
+                </Routes>
+              </DiscordProvider>
             </GuestProvider>
           </AuthProvider>
         </BrowserRouter>

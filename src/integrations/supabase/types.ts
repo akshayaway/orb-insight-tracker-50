@@ -663,6 +663,10 @@ export type Database = {
       user_profiles: {
         Row: {
           created_at: string | null
+          discord_id: string | null
+          discord_username: string | null
+          discord_verified: boolean
+          discord_verified_at: string | null
           email: string | null
           id: string
           is_admin: boolean | null
@@ -671,6 +675,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          discord_verified?: boolean
+          discord_verified_at?: string | null
           email?: string | null
           id?: string
           is_admin?: boolean | null
@@ -679,6 +687,10 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          discord_verified?: boolean
+          discord_verified_at?: string | null
           email?: string | null
           id?: string
           is_admin?: boolean | null
@@ -733,6 +745,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_discord_verified: { Args: { user_uuid: string }; Returns: boolean }
       set_account_active: {
         Args: { account_id_param: string }
         Returns: undefined
