@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { Menu, X, Sparkles } from 'lucide-react';
+import { Menu, X, Sparkles, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDiscord } from '@/contexts/DiscordContext';
 
 interface MobileHeaderProps {
   isMenuOpen: boolean;
@@ -13,6 +14,7 @@ interface MobileHeaderProps {
 export function MobileHeader({ isMenuOpen, onMenuToggle, title = 'PropFirm Journal' }: MobileHeaderProps) {
   const { user } = useAuth();
   const isGuest = !user;
+  const { discordVerified } = useDiscord();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-card border-b border-border flex items-center px-4 gap-3 safe-area-top">
@@ -51,6 +53,14 @@ export function MobileHeader({ isMenuOpen, onMenuToggle, title = 'PropFirm Journ
       >
         {title}
       </motion.h1>
+
+      {/* Discord Verified Badge */}
+      {!isGuest && discordVerified && (
+        <Badge variant="secondary" className="gap-1 text-xs shrink-0 bg-[hsl(235,86%,65%)]/10 text-[hsl(235,86%,65%)] border-[hsl(235,86%,65%)]/20">
+          <ShieldCheck className="w-3 h-3" />
+          Verified
+        </Badge>
+      )}
 
       {/* Guest Badge */}
       {isGuest && (

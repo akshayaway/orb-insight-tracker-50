@@ -6,6 +6,7 @@ import { StatsCard } from './StatsCard';
 import { TradingTable } from './TradingTable';
 import { EquityChart } from './EquityChart';
 import { GuestBanner } from './GuestBanner';
+import { DiscordVerificationBanner } from './DiscordVerificationBanner';
 import { useTrades } from '@/hooks/useTrades';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useAuth } from '@/contexts/AuthContext';
@@ -273,6 +274,9 @@ export function TradingDashboard() {
 
     {/* Guest Banner */}
     <GuestBanner />
+
+    {/* Discord Verification Banner */}
+    <DiscordVerificationBanner />
 
     {/* Time Filter */}
     <TimeFilter activeFilter={activeFilter} onFilterChange={setActiveFilter} />

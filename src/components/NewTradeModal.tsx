@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuest } from '@/contexts/GuestContext';
+import { useDiscord } from '@/contexts/DiscordContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAccounts } from '@/hooks/useAccounts';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Upload, X, Image as ImageIcon, Lock } from 'lucide-react';
+import { DiscordVerificationModal } from './DiscordVerificationModal';
 
 interface NewTradeModalProps {
   onTradeAdded?: () => void;
@@ -22,7 +24,9 @@ interface NewTradeModalProps {
 export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalProps) {
   const { user } = useAuth();
   const { isGuest, openAuthModal } = useGuest();
+  const { discordVerified } = useDiscord();
   const { getActiveAccount } = useAccounts();
+  const [showDiscordModal, setShowDiscordModal] = useState(false);
   const { toast } = useToast();
   const activeAccount = getActiveAccount();
   const [loading, setLoading] = useState(false);
@@ -279,18 +283,32 @@ export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalPr
     return Math.round(riskAmount * 100) / 100; // Round to 2 decimal places
   };
 
-  // Handle click for guest users
+  // Handle click for guest users or unverified users
   const handleTriggerClick = () => {
     if (isGuest) {
       openAuthModal('Create a free account to save your trades');
       return;
     }
+    if (!discordVerified) {
+      setShowDiscordModal(true);
+      return;
+    }
   };
 
   return (
-    <Dialog open={isGuest ? false : open} onOpenChange={(isOpen) => {
+    <>
+    <DiscordVerificationModal
+      isOpen={showDiscordModal}
+      onClose={() => setShowDiscordModal(false)}
+      actionDescription="Verify your Discord membership to log new trades."
+    />
+    <Dialog open={(isGuest || !discordVerified) ? false : open} onOpenChange={(isOpen) => {
       if (isGuest) {
         openAuthModal('Create a free account to save your trades');
+        return;
+      }
+      if (!discordVerified) {
+        setShowDiscordModal(true);
         return;
       }
       setOpen(isOpen);
@@ -497,5 +515,6 @@ export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalPr
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
