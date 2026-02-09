@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useDiscord } from '@/contexts/DiscordContext';
 import { useAuth } from '@/contexts/AuthContext';
+import React from 'react';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/7MRsuqqT3n';
 
 export function DiscordVerificationBanner() {
   const { user } = useAuth();
-  const { discordVerified, discordUsername, isVerifying, isLoading, startVerification } = useDiscord();
+  const { discordVerified, discordUsername, isVerifying, isLoading, startVerification, checkVerification } = useDiscord();
+  const [isRechecking, setIsRechecking] = React.useState(false);
 
   // Don't show for guests or while loading
   if (!user || isLoading) return null;
@@ -59,6 +61,24 @@ export function DiscordVerificationBanner() {
               <ShieldCheck className="w-3.5 h-3.5" />
             )}
             {isVerifying ? 'Verifying...' : 'Verify with Discord'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 sm:flex-none gap-1.5 text-xs"
+            onClick={async () => {
+              setIsRechecking(true);
+              await checkVerification();
+              setIsRechecking(false);
+            }}
+            disabled={isRechecking || isVerifying}
+          >
+            {isRechecking ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ShieldCheck className="w-3.5 h-3.5" />
+            )}
+            {isRechecking ? 'Checking...' : 'Recheck'}
           </Button>
         </div>
       </div>

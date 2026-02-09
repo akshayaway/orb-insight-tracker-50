@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { useDiscord } from './DiscordContext';
 
 interface GuestContextType {
   isGuest: boolean;
@@ -14,12 +15,13 @@ const GuestContext = createContext<GuestContextType | undefined>(undefined);
 
 export function GuestProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { discordVerified } = useDiscord();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [pendingCallback, setPendingCallback] = useState<(() => void) | null>(null);
 
-  // User is guest if not authenticated
-  const isGuest = !user;
+  // User is guest if not authenticated or not Discord verified
+  const isGuest = !user || !discordVerified;
 
   const openAuthModal = useCallback((action?: string) => {
     setPendingAction(action || null);
