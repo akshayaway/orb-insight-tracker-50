@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Upload, X, Image as ImageIcon, Lock, Users2, GraduationCap, Gift, AlertTriangle } from 'lucide-react';
+import { Plus, Upload, X, Image as ImageIcon, Lock } from 'lucide-react';
 import { DiscordVerificationModal } from './DiscordVerificationModal';
 
 interface NewTradeModalProps {
@@ -53,7 +53,6 @@ export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalPr
     result: '',
     notes: '',
     risk_percentage: '1.0', // Default to 1% risk
-    setup_tag: '',
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,7 +126,6 @@ export function NewTradeModal({ onTradeAdded, isOpen, onClose }: NewTradeModalPr
       result: '',
       notes: '',
       risk_percentage: '1.0',
-      setup_tag: '',
     });
     setImageFile(null);
     setImagePreview(null);

@@ -1,12 +1,10 @@
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { useGuest } from '@/contexts/GuestContext';
 import { Button } from '@/components/ui/button';
-import { Users, Sparkles } from 'lucide-react';
+import { UserPlus, Sparkles } from 'lucide-react';
 
 export function GuestBanner() {
-  const { isGuest } = useGuest();
-  const navigate = useNavigate();
+  const { isGuest, openAuthModal } = useGuest();
 
   if (!isGuest) return null;
 
@@ -26,18 +24,18 @@ export function GuestBanner() {
               Guest Mode
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              Sign in & verify Discord to unlock features
+              Sign up to save your trades
             </p>
           </div>
         </div>
         <Button 
           size="sm" 
-          onClick={() => navigate('/auth')}
+          onClick={() => openAuthModal('Create a free account to save your trades')}
           className="shrink-0 gap-1.5"
         >
-          <Users className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Get Started</span>
-          <span className="sm:hidden">Join</span>
+          <UserPlus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Sign Up Free</span>
+          <span className="sm:hidden">Sign Up</span>
         </Button>
       </div>
     </motion.div>

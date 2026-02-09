@@ -112,8 +112,8 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <DiscordProvider>
-              <GuestProvider>
+            <GuestProvider>
+              <DiscordProvider>
                 {/* Splash Screen */}
                 <SplashScreen isVisible={showSplash} />
                 
@@ -132,8 +132,8 @@ const App = () => {
                     }
                   />
                 </Routes>
-              </GuestProvider>
-            </DiscordProvider>
+              </DiscordProvider>
+            </GuestProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

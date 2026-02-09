@@ -54,24 +54,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Get the app origin from the request headers for redirect after OAuth
-      const appOrigin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/[^/]*$/, '') || "";
-      
-      // Use user ID as state parameter for CSRF protection, include app origin for redirect
-      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now(), appOrigin }));
+      // Use user ID as state parameter for CSRF protection
+      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now() }));
 
       const discordAuthUrl = new URL(`${DISCORD_API}/oauth2/authorize`);
       discordAuthUrl.searchParams.set("client_id", DISCORD_CLIENT_ID);
       discordAuthUrl.searchParams.set("redirect_uri", redirectUri);
       discordAuthUrl.searchParams.set("response_type", "code");
-<<<<<<< HEAD
       discordAuthUrl.searchParams.set("scope", "identify guilds.members.read");
-=======
-      discordAuthUrl.searchParams.set(
-        "scope",
-        "identify guilds guilds.members.read"
-      );
->>>>>>> 380502a (Add auth tabs and enforce Discord verification)
       discordAuthUrl.searchParams.set("state", stateParam);
 
       return new Response(JSON.stringify({ url: discordAuthUrl.toString() }), {
@@ -83,11 +73,9 @@ Deno.serve(async (req) => {
     if (code) {
       // Parse state to get user ID
       let userId: string;
-      let appOrigin: string = "";
       try {
         const stateData = JSON.parse(atob(state || ""));
         userId = stateData.userId;
-        appOrigin = stateData.appOrigin || "";
         // Check state isn't too old (10 minutes)
         if (Date.now() - stateData.ts > 600000) {
           throw new Error("State expired");
@@ -136,11 +124,6 @@ Deno.serve(async (req) => {
       const discordUser = await userRes.json();
 
       // Check guild membership using Bot token
-<<<<<<< HEAD
-=======
-      let isMember = false;
-      let isPending = false;
->>>>>>> 380502a (Add auth tabs and enforce Discord verification)
       const memberRes = await fetch(
         `${DISCORD_API}/guilds/${DISCORD_GUILD_ID}/members/${discordUser.id}`,
         {
@@ -148,35 +131,12 @@ Deno.serve(async (req) => {
         }
       );
 
-<<<<<<< HEAD
       const isMember = memberRes.ok;
-=======
-      if (memberRes.ok) {
-        const member = await memberRes.json();
-        isMember = true;
-        isPending = Boolean(member?.pending);
-      } else {
-        // Fallback to user token guild list if the bot cannot read members.
-        const guildsRes = await fetch(`${DISCORD_API}/users/@me/guilds`, {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` },
-        });
-
-        if (guildsRes.ok) {
-          const guilds = await guildsRes.json();
-          isMember = Array.isArray(guilds) &&
-            guilds.some((guild: { id?: string }) => guild?.id === DISCORD_GUILD_ID);
-        }
-      }
->>>>>>> 380502a (Add auth tabs and enforce Discord verification)
 
       // Update user_profiles with Discord info
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-<<<<<<< HEAD
       if (isMember) {
-=======
-      if (isMember && !isPending) {
->>>>>>> 380502a (Add auth tabs and enforce Discord verification)
         // User is a member - verify them
         const { error: upsertError } = await supabase
           .from("user_profiles")
@@ -197,11 +157,14 @@ Deno.serve(async (req) => {
           return redirectWithError("db_error");
         }
 
-        // Redirect back to app with success using the stored app origin
+        // Redirect back to app with success
+        // Use a known app URL pattern
+        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
+        const baseUrl = appUrl ? new URL(appUrl).origin : "";
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${appOrigin || "/"}?discord_verified=true`,
+            Location: `${baseUrl || "/"}?discord_verified=true`,
           },
         });
       } else {
@@ -220,18 +183,12 @@ Deno.serve(async (req) => {
             { onConflict: "user_id" }
           );
 
-<<<<<<< HEAD
+        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
+        const baseUrl = appUrl ? new URL(appUrl).origin : "";
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${appOrigin || "/"}?discord_error=not_member`,
-=======
-        const errorCode = isPending ? "not_verified" : "not_member";
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: `${appOrigin || "/"}?discord_error=${errorCode}`,
->>>>>>> 380502a (Add auth tabs and enforce Discord verification)
+            Location: `${baseUrl || "/"}?discord_error=not_member`,
           },
         });
       }
