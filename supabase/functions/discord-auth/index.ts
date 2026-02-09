@@ -54,8 +54,11 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Use user ID as state parameter for CSRF protection
-      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now() }));
+      // Get the app origin from the request headers for redirect after OAuth
+      const appOrigin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/[^/]*$/, '') || "";
+      
+      // Use user ID as state parameter for CSRF protection, include app origin for redirect
+      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now(), appOrigin }));
 
       const discordAuthUrl = new URL(`${DISCORD_API}/oauth2/authorize`);
       discordAuthUrl.searchParams.set("client_id", DISCORD_CLIENT_ID);
@@ -73,9 +76,11 @@ Deno.serve(async (req) => {
     if (code) {
       // Parse state to get user ID
       let userId: string;
+      let appOrigin: string = "";
       try {
         const stateData = JSON.parse(atob(state || ""));
         userId = stateData.userId;
+        appOrigin = stateData.appOrigin || "";
         // Check state isn't too old (10 minutes)
         if (Date.now() - stateData.ts > 600000) {
           throw new Error("State expired");
@@ -157,14 +162,11 @@ Deno.serve(async (req) => {
           return redirectWithError("db_error");
         }
 
-        // Redirect back to app with success
-        // Use a known app URL pattern
-        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
-        const baseUrl = appUrl ? new URL(appUrl).origin : "";
+        // Redirect back to app with success using the stored app origin
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${baseUrl || "/"}?discord_verified=true`,
+            Location: `${appOrigin || "/"}?discord_verified=true`,
           },
         });
       } else {
@@ -183,12 +185,10 @@ Deno.serve(async (req) => {
             { onConflict: "user_id" }
           );
 
-        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
-        const baseUrl = appUrl ? new URL(appUrl).origin : "";
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${baseUrl || "/"}?discord_error=not_member`,
+            Location: `${appOrigin || "/"}?discord_error=not_member`,
           },
         });
       }

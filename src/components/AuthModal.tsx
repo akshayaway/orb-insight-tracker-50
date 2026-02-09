@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuest } from '@/contexts/GuestContext';
 import { Button } from '@/components/ui/button';
@@ -15,39 +14,32 @@ import {
   Lock, 
   Loader2, 
   TrendingUp,
-  CheckCircle2,
   BarChart3,
   History,
-  Shield
+  Shield,
+  Users,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import { z } from 'zod';
 
+const DISCORD_INVITE_URL = 'https://discord.gg/7MRsuqqT3n';
+
 // Validation schemas
 const emailSchema = z.string().email('Please enter a valid email address');
-const passwordSchema = z
-  .string()
-  .min(8, 'Password must be at least 8 characters')
-  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-  .regex(/[0-9]/, 'Password must contain at least one number')
-  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
 
 export function AuthModal() {
   const { showAuthModal, pendingAction, closeAuthModal } = useGuest();
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [confirmPasswordError, setConfirmPasswordError] = useState('');
 
   const benefits = [
     { icon: BarChart3, text: 'Track your trading stats' },
@@ -64,26 +56,6 @@ export function AuthModal() {
       setEmailError(result.error.issues[0].message);
       return false;
     }
-  };
-
-  const validatePassword = (value: string): boolean => {
-    const result = passwordSchema.safeParse(value);
-    if (result.success) {
-      setPasswordError('');
-      return true;
-    } else {
-      setPasswordError(result.error.issues[0].message);
-      return false;
-    }
-  };
-
-  const validateConfirmPassword = (value: string): boolean => {
-    if (value !== password) {
-      setConfirmPasswordError('Passwords do not match');
-      return false;
-    }
-    setConfirmPasswordError('');
-    return true;
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -118,38 +90,6 @@ export function AuthModal() {
     setLoading(false);
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailError('');
-    setPasswordError('');
-    setConfirmPasswordError('');
-    
-    const isEmailValid = validateEmail(email);
-    const isPasswordValid = validatePassword(password);
-    const isConfirmValid = validateConfirmPassword(confirmPassword);
-    
-    if (!isEmailValid || !isPasswordValid || !isConfirmValid) return;
-    
-    setLoading(true);
-    const { error } = await signUp(email, password);
-    
-    if (error) {
-      toast({
-        title: "Error signing up",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Verification email sent!",
-        description: "Check your email to complete signup.",
-        duration: 6000,
-      });
-      closeAuthModal();
-    }
-    setLoading(false);
-  };
-
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     const { error } = await signInWithGoogle();
@@ -161,15 +101,6 @@ export function AuthModal() {
       });
       setGoogleLoading(false);
     }
-  };
-
-  const resetForm = () => {
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setEmailError('');
-    setPasswordError('');
-    setConfirmPasswordError('');
   };
 
   if (!showAuthModal) return null;
@@ -206,7 +137,7 @@ export function AuthModal() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-foreground">
-                  {mode === 'signup' ? 'Create Your Account' : 'Welcome Back'}
+                  Sign In to Continue
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {pendingAction || 'Save and track your trades'}
@@ -257,8 +188,8 @@ export function AuthModal() {
               </div>
             </div>
 
-            {/* Form */}
-            <form onSubmit={mode === 'signin' ? handleSignIn : handleSignUp} className="space-y-3">
+            {/* Sign In Form */}
+            <form onSubmit={handleSignIn} className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="modal-email" className="flex items-center gap-2 text-sm">
                   <Mail className="h-3.5 w-3.5 text-muted-foreground" />
@@ -292,10 +223,10 @@ export function AuthModal() {
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
-                      if (passwordError) validatePassword(e.target.value);
+                      if (passwordError) setPasswordError('');
                     }}
                     className={`pr-10 ${passwordError ? 'border-destructive' : ''}`}
-                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
@@ -309,51 +240,18 @@ export function AuthModal() {
                 {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
               </div>
 
-              {mode === 'signup' && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="modal-confirm" className="flex items-center gap-2 text-sm">
-                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                    Confirm Password
-                  </Label>
-                  <Input
-                    id="modal-confirm"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      if (confirmPasswordError) validateConfirmPassword(e.target.value);
-                    }}
-                    className={confirmPasswordError ? 'border-destructive' : ''}
-                    autoComplete="new-password"
-                  />
-                  {confirmPasswordError && <p className="text-xs text-destructive">{confirmPasswordError}</p>}
-                </div>
-              )}
-
               <Button type="submit" className="w-full h-11" disabled={loading || googleLoading}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {mode === 'signup' ? 'Creating account...' : 'Signing in...'}
+                    Signing in...
                   </>
-                ) : mode === 'signup' ? 'Create Free Account' : 'Sign In'}
+                ) : 'Sign In'}
               </Button>
             </form>
 
-            {/* Toggle Mode */}
-            <p className="text-center text-sm text-muted-foreground">
-              {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === 'signup' ? 'signin' : 'signup');
-                  resetForm();
-                }}
-                className="text-primary hover:underline font-medium"
-              >
-                {mode === 'signup' ? 'Sign in' : 'Sign up free'}
-              </button>
+            <p className="text-center text-xs text-muted-foreground">
+              New here? Sign in with Google, then verify with Discord to unlock features.
             </p>
           </div>
         </motion.div>
