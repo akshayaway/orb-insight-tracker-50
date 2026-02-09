@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDiscord } from '@/contexts/DiscordContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAccounts } from '@/hooks/useAccounts';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Lock, Users2, GraduationCap, Gift, AlertTriangle } from 'lucide-react';
 
 interface TradeEntryFormProps {
   onSuccess?: () => void;
@@ -19,6 +20,7 @@ interface TradeEntryFormProps {
 
 export function TradeEntryForm({ onSuccess, defaultSession, onTradeAdded }: TradeEntryFormProps) {
   const { user } = useAuth();
+  const { discordVerified } = useDiscord();
   const { getActiveAccount } = useAccounts();
   const { toast } = useToast();
   const activeAccount = getActiveAccount();
@@ -30,6 +32,7 @@ export function TradeEntryForm({ onSuccess, defaultSession, onTradeAdded }: Trad
     date: new Date().toISOString().split('T')[0],
     session: defaultSession || '',
     strategy_tag: '',
+    setup_tag: '',
     rr: '',
     result: '',
     notes: '',
@@ -155,6 +158,7 @@ export function TradeEntryForm({ onSuccess, defaultSession, onTradeAdded }: Trad
           date: new Date().toISOString().split('T')[0],
           session: defaultSession || '',
           strategy_tag: '',
+          setup_tag: '',
           rr: '',
           result: '',
           notes: '',
@@ -175,6 +179,75 @@ export function TradeEntryForm({ onSuccess, defaultSession, onTradeAdded }: Trad
     
     setLoading(false);
   };
+
+  // If user is not Discord verified, show verification requirement
+  if (user && !discordVerified) {
+    return (
+      <Card className="bg-gradient-card shadow-card border-border">
+        <CardHeader>
+          <CardTitle className="text-card-foreground flex items-center gap-3">
+            <Lock className="h-5 w-5 text-muted-foreground" />
+            Discord Verification Required
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Join our Discord server and verify your membership to unlock trade logging.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-background/50">
+              <Users2 className="h-4 w-4 text-primary mb-1" />
+              <span className="text-xs text-muted-foreground">Fellow traders</span>
+            </div>
+            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-background/50">
+              <GraduationCap className="h-4 w-4 text-primary mb-1" />
+              <span className="text-xs text-muted-foreground">Mentors & insights</span>
+            </div>
+            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-background/50">
+              <Gift className="h-4 w-4 text-primary mb-1" />
+              <span className="text-xs text-muted-foreground">Weekly giveaways</span>
+            </div>
+            <div className="flex flex-col items-center text-center p-2 rounded-lg bg-background/50">
+              <AlertTriangle className="h-4 w-4 text-primary mb-1" />
+              <span className="text-xs text-muted-foreground">Market ideas</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <Button
+              className="w-full gap-2 h-11 bg-primary hover:bg-primary/90 text-primary-foreground"
+              onClick={() => {
+                // Trigger Discord verification
+                window.open('https://discord.gg/7MRsuqqT3n', '_blank');
+                toast({
+                  title: "Discord Verification",
+                  description: "Join Discord server first, then verify your membership.",
+                });
+              }}
+            >
+              <Users2 className="w-4 h-4" />
+              Join Discord Server
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full gap-2 h-11"
+              onClick={() => {
+                // Navigate to auth page for verification
+                window.location.href = '/auth';
+              }}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Verify Discord Membership
+            </Button>
+          </div>
+
+          <p className="text-xs text-center text-muted-foreground pt-2">
+            Already a member? Complete verification to unlock full journal access.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="bg-gradient-card shadow-card border-border">
