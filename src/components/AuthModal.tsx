@@ -170,22 +170,33 @@ export function AuthModal() {
     if (!isEmailValid || !isPasswordValid || !isConfirmValid) return;
     
     setLoading(true);
-    const { error } = await signUp(email, password);
-    
-    if (error) {
-      toast({
-        title: "Error signing up",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      const result = await signUp(email, password);
+      
+      if (result.error) {
+        toast({
+          title: "Error signing up",
+          description: result.error.message || 'Something went wrong. Please try again.',
+          variant: "destructive",
+        });
+      } else {
+        setSignupEmail(email);
+        setSignupSuccess(true);
+        setLastSentAt(Date.now());
+        toast({
+          title: "Verification email sent!",
+          description: "Check your email to complete signup.",
+          duration: 6000,
+        });
+      }
+    } catch (err: any) {
       setSignupEmail(email);
       setSignupSuccess(true);
       setLastSentAt(Date.now());
       toast({
-        title: "Verification email sent!",
-        description: "Check your email to complete signup.",
-        duration: 6000,
+        title: "Account may have been created",
+        description: "The server took too long. Check your email or try signing in.",
+        duration: 8000,
       });
     }
     setLoading(false);
