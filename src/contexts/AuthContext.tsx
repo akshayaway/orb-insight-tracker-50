@@ -74,11 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email.trim().toLowerCase(),
         password,
         options: {
-          emailRedirectTo: redirectUrl,
-          // Try to bypass email confirmation
-          data: {
-            email_confirmed_at: new Date().toISOString()
-          }
+          emailRedirectTo: redirectUrl
         }
       });
       return { error };

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuest } from '@/contexts/GuestContext';
 import { Button } from '@/components/ui/button';
@@ -15,9 +16,11 @@ import {
   Lock, 
   Loader2, 
   TrendingUp,
+  CheckCircle2,
   BarChart3,
   History,
-  Shield
+  Shield,
+  RefreshCw
 } from 'lucide-react';
 import { z } from 'zod';
 
@@ -30,6 +33,8 @@ const passwordSchema = z
   .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
   .regex(/[0-9]/, 'Password must contain at least one number')
   .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
+
+const RESEND_COOLDOWN_MS = 12 * 60 * 1000;
 
 export function AuthModal() {
   const { showAuthModal, pendingAction, closeAuthModal } = useGuest();
@@ -47,6 +52,41 @@ export function AuthModal() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [signupSuccess, setSignupSuccess] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [lastSentAt, setLastSentAt] = useState<number | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    if (!lastSentAt) return;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - lastSentAt;
+      const remaining = Math.max(0, RESEND_COOLDOWN_MS - elapsed);
+      setCooldownRemaining(remaining);
+      if (remaining === 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lastSentAt]);
+
+  const handleResendEmail = useCallback(async () => {
+    if (cooldownRemaining > 0 || !signupEmail) return;
+    setResending(true);
+    const { error } = await supabase.auth.resend({ type: 'signup', email: signupEmail });
+    if (error) {
+      toast({ title: "Failed to resend", description: error.message, variant: "destructive" });
+    } else {
+      setLastSentAt(Date.now());
+      toast({ title: "Verification email resent!", description: "Check your inbox (and spam folder)." });
+    }
+    setResending(false);
+  }, [cooldownRemaining, signupEmail, toast]);
+
+  const formatCooldown = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   const benefits = [
     { icon: BarChart3, text: 'Track your trading stats' },
@@ -140,21 +180,23 @@ export function AuthModal() {
           variant: "destructive",
         });
       } else {
+        setSignupEmail(email);
+        setSignupSuccess(true);
+        setLastSentAt(Date.now());
         toast({
-          title: "Account created successfully!",
-          description: "You can now sign in with your credentials.",
+          title: "Verification email sent!",
+          description: "Check your email to complete signup.",
+          duration: 6000,
         });
-        // Switch to sign in mode after successful signup
-        setMode('signin');
-        setEmail('');
-        setPassword('');
-        setConfirmPassword('');
       }
     } catch (err: any) {
+      setSignupEmail(email);
+      setSignupSuccess(true);
+      setLastSentAt(Date.now());
       toast({
-        title: "Error signing up",
-        description: err.message || 'Something went wrong. Please try again.',
-        variant: "destructive",
+        title: "Account may have been created",
+        description: "The server took too long. Check your email or try signing in.",
+        duration: 8000,
       });
     }
     setLoading(false);
@@ -201,6 +243,52 @@ export function AuthModal() {
           className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
+          {signupSuccess ? (
+            <>
+              {/* Signup Success Header */}
+              <div className="relative bg-gradient-to-br from-primary/10 to-primary/5 p-6 pb-4">
+                <button
+                  onClick={closeAuthModal}
+                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-background/80 transition-colors"
+                >
+                  <X className="h-5 w-5 text-muted-foreground" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-primary/10">
+                    <CheckCircle2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground">Check Your Email</h2>
+                    <p className="text-sm text-muted-foreground">Verification link sent to <span className="font-medium text-foreground">{signupEmail}</span></p>
+                  </div>
+                </div>
+              </div>
+              {/* Signup Success Content */}
+              <div className="p-6 space-y-4">
+                <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground space-y-2">
+                  <p>📧 Check your inbox and spam/junk folder</p>
+                  <p>🔗 Click the verification link in the email</p>
+                  <p>⏰ The link expires in 24 hours</p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={handleResendEmail}
+                  disabled={cooldownRemaining > 0 || resending}
+                >
+                  {resending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {cooldownRemaining > 0
+                    ? `Resend in ${formatCooldown(cooldownRemaining)}`
+                    : resending ? 'Sending...' : 'Resend Verification Email'}
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">You can resend after 12 minutes</p>
+                <Button variant="ghost" className="w-full" onClick={() => { setSignupSuccess(false); resetForm(); }}>
+                  ← Back to Sign In
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
           {/* Header */}
           <div className="relative bg-gradient-to-br from-primary/10 to-primary/5 p-6 pb-4">
             <button
@@ -366,6 +454,8 @@ export function AuthModal() {
               </button>
             </p>
           </div>
+            </>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { TrendingUp, Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
+import { TrendingUp, Eye, EyeOff, Mail, Lock, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
+
+const RESEND_COOLDOWN_MS = 12 * 60 * 1000; // 12 minutes
 
 // Validation schemas
 const emailSchema = z.string().email('Please enter a valid email address');
@@ -31,10 +34,49 @@ export default function Auth() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
-  const [activeTab, setActiveTab] = useState('signin');
+  const [signupSuccess, setSignupSuccess] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [lastSentAt, setLastSentAt] = useState<number | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [resending, setResending] = useState(false);
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Cooldown timer
+  useEffect(() => {
+    if (!lastSentAt) return;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - lastSentAt;
+      const remaining = Math.max(0, RESEND_COOLDOWN_MS - elapsed);
+      setCooldownRemaining(remaining);
+      if (remaining === 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lastSentAt]);
+
+  const handleResendEmail = useCallback(async () => {
+    if (cooldownRemaining > 0 || !signupEmail) return;
+    setResending(true);
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: signupEmail,
+    });
+    if (error) {
+      toast({
+        title: "Failed to resend",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setLastSentAt(Date.now());
+      toast({
+        title: "Verification email resent!",
+        description: "Check your inbox (and spam folder).",
+      });
+    }
+    setResending(false);
+  }, [cooldownRemaining, signupEmail, toast]);
 
   const validateEmail = (value: string): boolean => {
     const result = emailSchema.safeParse(value);
@@ -133,21 +175,24 @@ export default function Auth() {
           variant: "destructive",
         });
       } else {
+        setSignupEmail(email);
+        setSignupSuccess(true);
+        setLastSentAt(Date.now());
         toast({
-          title: "Account created successfully!",
-          description: "You can now sign in with your credentials.",
+          title: "Verification email sent!",
+          description: "Please check your email inbox and click the verification link to complete signup.",
+          duration: 6000,
         });
-        // Switch to sign in tab after successful signup
-        setActiveTab('signin');
-        setEmail('');
-        setPassword('');
-        setConfirmPassword('');
       }
     } catch (err: any) {
+      // Handle network/timeout errors - signup may have succeeded
+      setSignupEmail(email);
+      setSignupSuccess(true);
+      setLastSentAt(Date.now());
       toast({
-        title: "Error signing up",
-        description: err.message || 'Something went wrong. Please try again.',
-        variant: "destructive",
+        title: "Account may have been created",
+        description: "The server took too long to respond. Check your email for a verification link, or try signing in.",
+        duration: 8000,
       });
     }
     
@@ -186,7 +231,77 @@ export default function Auth() {
     if (confirmPasswordError) validateConfirmPassword(value);
   };
 
+  const formatCooldown = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
+  // Show signup success screen with resend option
+  if (signupSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md bg-card shadow-lg border-border">
+          <CardHeader className="text-center space-y-2">
+            <div className="flex justify-center mb-2">
+              <div className="p-3 rounded-full bg-primary/10">
+                <CheckCircle2 className="h-10 w-10 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold text-card-foreground">
+              Check Your Email
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              We sent a verification link to <span className="font-medium text-foreground">{signupEmail}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground space-y-2">
+              <p>📧 Check your inbox and spam/junk folder</p>
+              <p>🔗 Click the verification link in the email</p>
+              <p>⏰ The link expires in 24 hours</p>
+            </div>
+
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleResendEmail}
+                disabled={cooldownRemaining > 0 || resending}
+              >
+                {resending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {cooldownRemaining > 0
+                  ? `Resend in ${formatCooldown(cooldownRemaining)}`
+                  : resending
+                    ? 'Sending...'
+                    : 'Resend Verification Email'}
+              </Button>
+              <p className="text-xs text-center text-muted-foreground">
+                You can resend after 12 minutes
+              </p>
+            </div>
+
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setSignupSuccess(false);
+                setEmail('');
+                setPassword('');
+                setConfirmPassword('');
+              }}
+            >
+              ← Back to Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -247,7 +362,7 @@ export default function Auth() {
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
