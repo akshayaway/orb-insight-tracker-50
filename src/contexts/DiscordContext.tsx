@@ -31,24 +31,23 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
     if (verified === 'true') {
       setDiscordVerified(true);
       toast({
-        title: 'Discord Verified!',
-        description: 'Full journal access unlocked.',
+        title: "Discord Verified! ✅",
+        description: "Full journal access unlocked.",
       });
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     } else if (error) {
       const messages: Record<string, string> = {
-        not_member: 'Please join our Discord server first, then try again.',
-        not_verified: 'Please complete the Discord server verification, then try again.',
-        token_failed: 'Discord authorization failed. Please try again.',
-        user_fetch_failed: 'Could not fetch Discord profile. Please try again.',
-        invalid_state: 'Session expired. Please try again.',
-        db_error: 'Something went wrong. Please try again.',
+        not_member: "Please join our Discord server first, then try again.",
+        token_failed: "Discord authorization failed. Please try again.",
+        user_fetch_failed: "Could not fetch Discord profile. Please try again.",
+        invalid_state: "Session expired. Please try again.",
+        db_error: "Something went wrong. Please try again.",
       };
       toast({
-        title: 'Verification Failed',
-        description: messages[error] || 'An error occurred. Please try again.',
-        variant: 'destructive',
+        title: "Verification Failed",
+        description: messages[error] || "An error occurred. Please try again.",
+        variant: "destructive",
       });
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -63,27 +62,8 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setIsLoading(true);
     try {
-      // Recheck membership via edge function (updates profile if status changed)
-      const res = await fetch(
-        'https://notyhakhjrmzhnnjbiqp.supabase.co/functions/v1/discord-auth?action=check',
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (res.ok) {
-        const data = await res.json();
-        setDiscordVerified(Boolean(data?.verified));
-        setDiscordUsername(data?.discord_username || null);
-        return;
-      }
-
-      // Fallback to local profile
+      // First check local profile
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('discord_verified, discord_username')
@@ -105,34 +85,13 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
     checkVerification();
   }, [checkVerification]);
 
-  useEffect(() => {
-    if (!user || !session) return;
-
-    const interval = setInterval(() => {
-      checkVerification();
-    }, 1000 * 60 * 5);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        checkVerification();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, [user, session, checkVerification]);
-
   const startVerification = useCallback(async () => {
     if (!session) return;
 
     setIsVerifying(true);
     try {
       const res = await fetch(
-        'https://notyhakhjrmzhnnjbiqp.supabase.co/functions/v1/discord-auth?action=login',
+        `https://notyhakhjrmzhnnjbiqp.supabase.co/functions/v1/discord-auth?action=login`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -148,17 +107,17 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
         window.location.href = data.url;
       } else {
         toast({
-          title: 'Error',
-          description: data.error || 'Failed to start verification',
-          variant: 'destructive',
+          title: "Error",
+          description: data.error || "Failed to start verification",
+          variant: "destructive",
         });
       }
     } catch (error) {
       console.error('Error starting Discord verification:', error);
       toast({
-        title: 'Connection Error',
-        description: 'Could not connect to verification service. Please try again.',
-        variant: 'destructive',
+        title: "Connection Error",
+        description: "Could not connect to verification service. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsVerifying(false);

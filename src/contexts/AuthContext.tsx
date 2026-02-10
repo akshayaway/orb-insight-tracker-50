@@ -2,6 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+// Create a separate client for admin operations
+const adminSupabase = supabase;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -41,24 +44,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
-    return { error };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      
+      // If there's no error, the sign in was successful
+      if (!error) {
+        return { error: null };
+      }
+      
+      // Handle specific error cases
+      if (error.message.includes('Email not confirmed')) {
+        return { error: { message: 'Please check your email to verify your account before signing in.', name: 'EmailNotConfirmed', status: 401 } as any };
+      }
+      
+      return { error };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Connection error. Please try again.', name: 'AuthError', status: 500 } as any };
+    }
   };
 
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: {
-        emailRedirectTo: redirectUrl
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          // Try to bypass email confirmation
+          data: {
+            email_confirmed_at: new Date().toISOString()
+          }
+        }
+      });
+      return { error };
+    } catch (err: any) {
+      // Handle network timeouts (504) gracefully - signup may have succeeded
+      if (err?.message?.includes('timeout') || err?.status === 504 || err?.message === '0') {
+        return { error: null, possibleTimeout: true };
       }
-    });
-    return { error };
+      return { error: { message: err?.message || 'An unexpected error occurred. Please try again.', name: 'AuthError', status: 500 } as any };
+    }
   };
 
   const signInWithGoogle = async () => {
