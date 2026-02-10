@@ -184,7 +184,7 @@ export default function Auth() {
           duration: 6000,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Handle network/timeout errors - signup may have succeeded
       setSignupEmail(email);
       setSignupSuccess(true);

@@ -189,7 +189,7 @@ export function AuthModal() {
           duration: 6000,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSignupEmail(email);
       setSignupSuccess(true);
       setLastSentAt(Date.now());

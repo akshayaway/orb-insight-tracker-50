@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Handle specific error cases
       if (error.message.includes('Email not confirmed')) {
-        return { error: { message: 'Please check your email to verify your account before signing in.', name: 'EmailNotConfirmed', status: 401 } as any };
+        return { error: { message: 'Please check your email to verify your account before signing in.', name: 'EmailNotConfirmed', status: 401 } as AuthError };
       }
       
       return { error };
