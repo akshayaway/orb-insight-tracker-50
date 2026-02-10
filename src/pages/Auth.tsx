@@ -165,22 +165,34 @@ export default function Auth() {
     
     setLoading(true);
     
-    const { error } = await signUp(email, password);
-    
-    if (error) {
-      toast({
-        title: "Error signing up",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
+    try {
+      const result = await signUp(email, password);
+      
+      if (result.error) {
+        toast({
+          title: "Error signing up",
+          description: result.error.message || 'Something went wrong. Please try again.',
+          variant: "destructive",
+        });
+      } else {
+        setSignupEmail(email);
+        setSignupSuccess(true);
+        setLastSentAt(Date.now());
+        toast({
+          title: "Verification email sent!",
+          description: "Please check your email inbox and click the verification link to complete signup.",
+          duration: 6000,
+        });
+      }
+    } catch (err: any) {
+      // Handle network/timeout errors - signup may have succeeded
       setSignupEmail(email);
       setSignupSuccess(true);
       setLastSentAt(Date.now());
       toast({
-        title: "Verification email sent!",
-        description: "Please check your email inbox and click the verification link to complete signup.",
-        duration: 6000,
+        title: "Account may have been created",
+        description: "The server took too long to respond. Check your email for a verification link, or try signing in.",
+        duration: 8000,
       });
     }
     

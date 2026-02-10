@@ -41,24 +41,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
-    return { error };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      return { error };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Connection error. Please try again.', name: 'AuthError', status: 500 } as any };
+    }
   };
 
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: {
-        emailRedirectTo: redirectUrl
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          emailRedirectTo: redirectUrl
+        }
+      });
+      return { error };
+    } catch (err: any) {
+      // Handle network timeouts (504) gracefully - signup may have succeeded
+      if (err?.message?.includes('timeout') || err?.status === 504 || err?.message === '0') {
+        return { error: null, possibleTimeout: true };
       }
-    });
-    return { error };
+      return { error: { message: err?.message || 'An unexpected error occurred. Please try again.', name: 'AuthError', status: 500 } as any };
+    }
   };
 
   const signInWithGoogle = async () => {
