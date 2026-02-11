@@ -55,11 +55,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: null };
       }
       
-      // Handle specific error cases
-      if (error.message.includes('Email not confirmed')) {
-        return { error: { message: 'Please check your email to verify your account before signing in.', name: 'EmailNotConfirmed', status: 401 } as AuthError };
-      }
-      
       return { error };
     } catch (err: any) {
       return { error: { message: err?.message || 'Connection error. Please try again.', name: 'AuthError', status: 500 } as any };
@@ -70,18 +65,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const redirectUrl = `${window.location.origin}/`;
     
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
-          emailRedirectTo: redirectUrl
+          emailRedirectTo: redirectUrl,
+          data: { email_confirm: true }
         }
       });
+      
+      if (!error && data?.user) {
+        // Auto sign-in after signup
+        const signInResult = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+        return { error: signInResult.error };
+      }
+      
       return { error };
     } catch (err: any) {
-      // Handle network timeouts (504) gracefully - signup may have succeeded
+      // Handle network timeouts (504) gracefully - try to sign in anyway
       if (err?.message?.includes('timeout') || err?.status === 504 || err?.message === '0') {
-        return { error: null, possibleTimeout: true };
+        const signInResult = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+        return { error: signInResult.error };
       }
       return { error: { message: err?.message || 'An unexpected error occurred. Please try again.', name: 'AuthError', status: 500 } as any };
     }
