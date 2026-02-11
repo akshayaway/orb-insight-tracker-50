@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   Users,
   ExternalLink,
-  Loader2
+  Loader2,
+  Twitter,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuest } from '@/contexts/GuestContext';
@@ -141,6 +143,30 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                       </motion.button>
                     );
                   })}
+                </div>
+
+                {/* Social Links */}
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="px-4 text-xs font-medium text-muted-foreground mb-2">Community</p>
+                  <div className="space-y-1">
+                    {[
+                      { href: 'https://x.com/propfirm_forex', label: 'Twitter', icon: Twitter },
+                      { href: 'https://telegram.dog/free_propfirm_accounts', label: 'Telegram', icon: MessageCircle },
+                      { href: 'https://discord.gg/7MRsuqqT3n', label: 'Discord', icon: Users },
+                    ].map((link) => (
+                      <a
+                        key={link.label}
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-foreground hover:bg-muted active:bg-muted/80 transition-colors touch-target"
+                      >
+                        <link.icon className="w-5 h-5 flex-shrink-0" />
+                        <span className="font-medium text-base">{link.label}</span>
+                        <ExternalLink className="w-3.5 h-3.5 ml-auto text-muted-foreground" />
+                      </a>
+                    ))}
+                  </div>
                 </div>
               </div>
 
