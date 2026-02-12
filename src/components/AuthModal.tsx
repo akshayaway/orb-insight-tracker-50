@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGuest } from '@/contexts/GuestContext';
 import { Button } from '@/components/ui/button';
@@ -16,11 +15,9 @@ import {
   Lock, 
   Loader2, 
   TrendingUp,
-  CheckCircle2,
   BarChart3,
   History,
-  Shield,
-  RefreshCw
+  Shield
 } from 'lucide-react';
 import { z } from 'zod';
 
@@ -34,11 +31,9 @@ const passwordSchema = z
   .regex(/[0-9]/, 'Password must contain at least one number')
   .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
 
-const RESEND_COOLDOWN_MS = 12 * 60 * 1000;
-
 export function AuthModal() {
   const { showAuthModal, pendingAction, closeAuthModal } = useGuest();
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -47,46 +42,11 @@ export function AuthModal() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
-  const [signupSuccess, setSignupSuccess] = useState(false);
-  const [signupEmail, setSignupEmail] = useState('');
-  const [lastSentAt, setLastSentAt] = useState<number | null>(null);
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
-  const [resending, setResending] = useState(false);
-
-  useEffect(() => {
-    if (!lastSentAt) return;
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - lastSentAt;
-      const remaining = Math.max(0, RESEND_COOLDOWN_MS - elapsed);
-      setCooldownRemaining(remaining);
-      if (remaining === 0) clearInterval(interval);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [lastSentAt]);
-
-  const handleResendEmail = useCallback(async () => {
-    if (cooldownRemaining > 0 || !signupEmail) return;
-    setResending(true);
-    const { error } = await supabase.auth.resend({ type: 'signup', email: signupEmail });
-    if (error) {
-      toast({ title: "Failed to resend", description: error.message, variant: "destructive" });
-    } else {
-      setLastSentAt(Date.now());
-      toast({ title: "Verification email resent!", description: "Check your inbox (and spam folder)." });
-    }
-    setResending(false);
-  }, [cooldownRemaining, signupEmail, toast]);
-
-  const formatCooldown = (ms: number) => {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
 
   const benefits = [
     { icon: BarChart3, text: 'Track your trading stats' },
@@ -180,40 +140,15 @@ export function AuthModal() {
           variant: "destructive",
         });
       } else {
-        setSignupEmail(email);
-        setSignupSuccess(true);
-        setLastSentAt(Date.now());
-        toast({
-          title: "Verification email sent!",
-          description: "Check your email to complete signup.",
-          duration: 6000,
-        });
+        toast({ title: "Account created!", description: "Welcome to PropFirm Knowledge Journal." });
+        closeAuthModal();
       }
     } catch (err: unknown) {
-      setSignupEmail(email);
-      setSignupSuccess(true);
-      setLastSentAt(Date.now());
-      toast({
-        title: "Account may have been created",
-        description: "The server took too long. Check your email or try signing in.",
-        duration: 8000,
-      });
+      toast({ title: "Error", description: "Something went wrong. Please try again.", variant: "destructive" });
     }
     setLoading(false);
   };
 
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    const { error } = await signInWithGoogle();
-    if (error) {
-      toast({
-        title: "Error signing in with Google",
-        description: error.message,
-        variant: "destructive",
-      });
-      setGoogleLoading(false);
-    }
-  };
 
   const resetForm = () => {
     setEmail('');
@@ -243,52 +178,8 @@ export function AuthModal() {
           className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {signupSuccess ? (
-            <>
-              {/* Signup Success Header */}
-              <div className="relative bg-gradient-to-br from-primary/10 to-primary/5 p-6 pb-4">
-                <button
-                  onClick={closeAuthModal}
-                  className="absolute top-4 right-4 p-2 rounded-full hover:bg-background/80 transition-colors"
-                >
-                  <X className="h-5 w-5 text-muted-foreground" />
-                </button>
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-primary/10">
-                    <CheckCircle2 className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-foreground">Check Your Email</h2>
-                    <p className="text-sm text-muted-foreground">Verification link sent to <span className="font-medium text-foreground">{signupEmail}</span></p>
-                  </div>
-                </div>
-              </div>
-              {/* Signup Success Content */}
-              <div className="p-6 space-y-4">
-                <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground space-y-2">
-                  <p>📧 Check your inbox and spam/junk folder</p>
-                  <p>🔗 Click the verification link in the email</p>
-                  <p>⏰ The link expires in 24 hours</p>
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={handleResendEmail}
-                  disabled={cooldownRemaining > 0 || resending}
-                >
-                  {resending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  {cooldownRemaining > 0
-                    ? `Resend in ${formatCooldown(cooldownRemaining)}`
-                    : resending ? 'Sending...' : 'Resend Verification Email'}
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">You can resend after 12 minutes</p>
-                <Button variant="ghost" className="w-full" onClick={() => { setSignupSuccess(false); resetForm(); }}>
-                  ← Back to Sign In
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
+          <>
+
           {/* Header */}
           <div className="relative bg-gradient-to-br from-primary/10 to-primary/5 p-6 pb-4">
             <button
@@ -325,35 +216,6 @@ export function AuthModal() {
 
           {/* Content */}
           <div className="p-6 space-y-4">
-            {/* Google Sign In */}
-            <Button 
-              type="button"
-              variant="outline" 
-              className="w-full h-11 gap-3"
-              onClick={handleGoogleSignIn}
-              disabled={googleLoading || loading}
-            >
-              {googleLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <svg className="h-5 w-5" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-              )}
-              <span>Continue with Google</span>
-            </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or</span>
-              </div>
-            </div>
 
             {/* Form */}
             <form onSubmit={mode === 'signin' ? handleSignIn : handleSignUp} className="space-y-3">
@@ -429,7 +291,7 @@ export function AuthModal() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full h-11" disabled={loading || googleLoading}>
+              <Button type="submit" className="w-full h-11" disabled={loading}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -454,8 +316,8 @@ export function AuthModal() {
               </button>
             </p>
           </div>
-            </>
-          )}
+          </>
+
         </motion.div>
       </motion.div>
     </AnimatePresence>

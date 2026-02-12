@@ -25,6 +25,29 @@ import PublicTrade from "./pages/PublicTrade";
 import TradeReview from "./pages/TradeReview";
 import TradeIdeasPage from "./pages/TradeIdeasPage";
 
+// Add error boundary wrapper for the entire app
+const AppWithErrorBoundary = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <>{children}</>;
+  } catch (error) {
+    console.error('App error:', error);
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Something went wrong</h1>
+          <p className="text-muted-foreground mb-4">Please refresh the page and try again</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+};
+
 // Configure React Query with caching for mobile performance
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,38 +129,40 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <GuestProvider>
-              <DiscordProvider>
-                {/* Splash Screen */}
-                <SplashScreen isVisible={showSplash} />
-                
-                {/* Auth Modal for Guest Users */}
-                <AuthModal />
+    <AppWithErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <GuestProvider>
+                <DiscordProvider>
+                  {/* Splash Screen */}
+                  <SplashScreen isVisible={showSplash} />
+                  
+                  {/* Auth Modal for Guest Users */}
+                  <AuthModal />
 
-                <Routes>
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/trade/:tradeId" element={<PublicTrade />} />
-                  <Route
-                    path="/*"
-                    element={
-                      <DesktopLayout>
-                        <AppRoutes />
-                      </DesktopLayout>
-                    }
-                  />
-                </Routes>
-              </DiscordProvider>
-            </GuestProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+                  <Routes>
+                    <Route path="/auth" element={<Auth />} />
+                    <Route path="/trade/:tradeId" element={<PublicTrade />} />
+                    <Route
+                      path="/*"
+                      element={
+                        <DesktopLayout>
+                          <AppRoutes />
+                        </DesktopLayout>
+                      }
+                    />
+                  </Routes>
+                </DiscordProvider>
+              </GuestProvider>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AppWithErrorBoundary>
   );
 };
 

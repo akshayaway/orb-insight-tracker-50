@@ -10,6 +10,21 @@ import { Badge } from "@/components/ui/badge";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useTrades } from "@/hooks/useTrades";
 
+// Add error boundary wrapper for sidebar
+const SidebarWithErrorBoundary = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <>{children}</>;
+  } catch (error) {
+    console.error('Sidebar error:', error);
+    return (
+      <div className="p-4 text-red-500 border border-red-200 bg-red-50 rounded">
+        <p className="text-sm font-medium">Sidebar Error</p>
+        <p className="text-xs mt-1">Please refresh the page</p>
+      </div>
+    );
+  }
+};
+
 const mainItems = [
   { title: "Dashboard", url: "/", icon: BarChart3 },
   { title: "Stats", url: "/stats", icon: TrendingUp },
@@ -55,175 +70,185 @@ export function AppSidebar() {
   const getNavCls = ({ isActive }: { isActive: boolean; }) => 
     isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "hover:bg-sidebar-accent/50";
 
-  // Calculate real P&L from trades
-  const stats = calculateStats;
-  const currentBalance = activeAccount ? activeAccount.current_balance : 0;
-  const startingBalance = activeAccount ? activeAccount.starting_balance : 0;
-  const pnl = currentBalance - startingBalance;
+  // Calculate real P&L from trades with error handling
+  let stats, currentBalance, startingBalance, pnl;
+  try {
+    stats = calculateStats;
+    currentBalance = activeAccount ? activeAccount.current_balance : 0;
+    startingBalance = activeAccount ? activeAccount.starting_balance : 0;
+    pnl = currentBalance - startingBalance;
+  } catch (error) {
+    console.error('Error calculating stats:', error);
+    currentBalance = 0;
+    startingBalance = 0;
+    pnl = 0;
+  }
 
   return (
-    <Sidebar 
-      className={`${collapsed ? "w-14" : "w-60"} transition-all duration-300`}
-      collapsible="icon"
-    >
-      <SidebarContent>
-        {/* Header */}
-        <div className="p-3 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <img 
-              src="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg" 
-              alt="PropFirm" 
-              className="w-8 h-8 rounded-lg flex-shrink-0 object-cover"
-            />
-            {!collapsed && (
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-sidebar-foreground truncate">PropFirm Journal</h2>
-                  {isGuest && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      Guest
+    <SidebarWithErrorBoundary>
+      <Sidebar 
+        className={`${collapsed ? "w-14" : "w-60"} transition-all duration-300`}
+        collapsible="icon"
+      >
+        <SidebarContent>
+          {/* Header */}
+          <div className="p-3 border-b border-sidebar-border">
+            <div className="flex items-center gap-2">
+              <img 
+                src="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg" 
+                alt="PropFirm" 
+                className="w-8 h-8 rounded-lg flex-shrink-0 object-cover"
+              />
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-sidebar-foreground truncate">PropFirm Journal</h2>
+                    {isGuest && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        Guest
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-sidebar-foreground/60 truncate">Knowledge Dashboard</p>
+                  {!isGuest && discordVerified && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-[hsl(235,86%,65%)]/10 text-[hsl(235,86%,65%)] border-[hsl(235,86%,65%)]/20">
+                      <ShieldCheck className="w-2.5 h-2.5 mr-0.5" />
+                      Verified
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-sidebar-foreground/60 truncate">Knowledge Dashboard</p>
-                {!isGuest && discordVerified && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-[hsl(235,86%,65%)]/10 text-[hsl(235,86%,65%)] border-[hsl(235,86%,65%)]/20">
-                    <ShieldCheck className="w-2.5 h-2.5 mr-0.5" />
-                    Verified
-                  </Badge>
-                )}
+              )}
+            </div>
+          </div>
+
+          {/* Portfolio Value */}
+          {!collapsed && activeAccount && (
+            <div className="p-3 border-b border-sidebar-border">
+              <div className="text-sidebar-foreground/60 text-xs">Portfolio Value</div>
+              <div className="text-lg font-bold text-sidebar-foreground truncate">
+                ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Portfolio Value */}
-        {!collapsed && activeAccount && (
-          <div className="p-3 border-b border-sidebar-border">
-            <div className="text-sidebar-foreground/60 text-xs">Portfolio Value</div>
-            <div className="text-lg font-bold text-sidebar-foreground truncate">
-              ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className={`text-xs truncate ${pnl >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {pnl >= 0 ? '+' : ''}${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({activeAccount.name})
+              </div>
             </div>
-            <div className={`text-xs truncate ${pnl >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {pnl >= 0 ? '+' : ''}${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({activeAccount.name})
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Main Navigation */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map(item => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end 
-                      className={getNavCls}
-                    >
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
-                      {!collapsed && <span className="text-sm truncate">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Social Links */}
-        {!collapsed && (
+          {/* Main Navigation */}
           <SidebarGroup>
-            <SidebarGroupLabel className="text-xs">Community</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <a 
-                      href="https://x.com/propfirm_forex" 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="hover:bg-sidebar-accent/50"
-                    >
-                      <Twitter className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">Twitter</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <a 
-                      href="https://telegram.dog/free_propfirm_accounts" 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="hover:bg-sidebar-accent/50"
-                    >
-                      <MessageCircle className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">Telegram</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <a 
-                      href="https://discord.gg/7MRsuqqT3n" 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="hover:bg-sidebar-accent/50"
-                    >
-                      <Users className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">Discord</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {mainItems.map(item => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink 
+                        to={item.url} 
+                        end 
+                        className={getNavCls}
+                      >
+                        <item.icon className="w-4 h-4 flex-shrink-0" />
+                        {!collapsed && <span className="text-sm truncate">{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
 
-        {/* Other */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {otherItems.map(item => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      className={getNavCls}
+          {/* Social Links */}
+          {!collapsed && (
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs">Community</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <a 
+                        href="https://x.com/propfirm_forex" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="hover:bg-sidebar-accent/50"
+                      >
+                        <Twitter className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-sm">Twitter</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <a 
+                        href="https://telegram.dog/free_propfirm_accounts" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="hover:bg-sidebar-accent/50"
+                      >
+                        <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-sm">Telegram</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <a 
+                        href="https://discord.gg/7MRsuqqT3n" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="hover:bg-sidebar-accent/50"
+                      >
+                        <Users className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-sm">Discord</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
+          {/* Other */}
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {otherItems.map(item => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink 
+                        to={item.url} 
+                        className={getNavCls}
+                      >
+                        <item.icon className="w-4 h-4 flex-shrink-0" />
+                        {!collapsed && <span className="text-sm truncate">{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+                {isGuest ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      onClick={() => openAuthModal('Sign in to save your trades')} 
+                      className="text-primary hover:bg-primary/10"
                     >
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
-                      {!collapsed && <span className="text-sm truncate">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {isGuest ? (
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    onClick={() => openAuthModal('Sign in to save your trades')} 
-                    className="text-primary hover:bg-primary/10"
-                  >
-                    <LogIn className="w-4 h-4 flex-shrink-0" />
-                    {!collapsed && <span className="text-sm truncate">Sign In / Sign Up</span>}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ) : (
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    onClick={signOut} 
-                    className="text-destructive hover:bg-destructive/10"
-                  >
-                    <LogOut className="w-4 h-4 flex-shrink-0" />
-                    {!collapsed && <span className="text-sm truncate">Logout</span>}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
+                      <LogIn className="w-4 h-4 flex-shrink-0" />
+                      {!collapsed && <span className="text-sm truncate">Sign In / Sign Up</span>}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      onClick={signOut} 
+                      className="text-destructive hover:bg-destructive/10"
+                    >
+                      <LogOut className="w-4 h-4 flex-shrink-0" />
+                      {!collapsed && <span className="text-sm truncate">Logout</span>}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    </SidebarWithErrorBoundary>
   );
 }

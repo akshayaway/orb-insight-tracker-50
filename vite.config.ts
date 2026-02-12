@@ -38,5 +38,23 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 500,
     // Use default esbuild minification (faster, no extra dependencies)
     minify: mode === 'production' ? 'esbuild' : false,
+    // Add error handling for build process
+    sourcemap: mode === 'development',
+    // Ensure proper handling of dynamic imports
+    target: 'es2020',
   },
+  // Add error handling for development
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@tanstack/react-query',
+      '@supabase/supabase-js',
+      'framer-motion',
+      'lucide-react',
+      'recharts',
+      'date-fns'
+    ]
+  }
 }));
