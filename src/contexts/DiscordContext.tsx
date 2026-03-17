@@ -15,7 +15,7 @@ interface DiscordContextType {
 const DiscordContext = createContext<DiscordContextType | undefined>(undefined);
 
 export function DiscordProvider({ children }: { children: React.ReactNode }) {
-  const { user, session } = useAuth();
+  const { user, session, authReady } = useAuth();
   const { toast } = useToast();
   const [discordVerified, setDiscordVerified] = useState(false);
   const [discordUsername, setDiscordUsername] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
 
   // Load verification status from profile
   const checkVerification = useCallback(async () => {
-    if (!user || !session) {
+    if (!authReady || !user || !session) {
       setDiscordVerified(false);
       setDiscordUsername(null);
       setIsLoading(false);
@@ -79,7 +79,7 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, session]);
+  }, [authReady, user, session]);
 
   useEffect(() => {
     checkVerification();

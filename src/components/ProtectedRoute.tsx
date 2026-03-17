@@ -1,19 +1,16 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { AuthRecoveryScreen } from '@/components/AuthRecoveryScreen';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, authReady } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-card-foreground">Loading...</div>
-      </div>
-    );
+  if (loading || !authReady) {
+    return <AuthRecoveryScreen message="Validating your session…" />;
   }
 
   if (!user) {

@@ -1,146 +1,296 @@
 
-Goal: eliminate blank/white screens by making auth initialization fault-tolerant, blocking app render until session recovery finishes, and redirecting broken sessions to `/auth`.
 
-1. What I found
-- The app already has `persistSession` and `autoRefreshToken`, but `detectSessionInUrl` is missing in `src/integrations/supabase/client.ts`.
-- `AuthContext` is too optimistic:
-  - it calls `getSession()` but does not validate expiry or malformed sessions
-  - it does not clear stale Supabase keys/storage on auth corruption
-  - it does not handle recovery events like token refresh failure
-- `App.tsx` renders the app immediately once `loading` flips false, so broken auth/local cache can still cascade into crashes.
-- There is already a real `ErrorBoundary` component, but `App.tsx` is using a try/catch wrapper component instead of the proper boundary.
-- Current console logs show a separate backend issue too: repeated `accounts` RLS insert failures during auto default-account creation. That likely contributes to bad post-login states and should be fixed alongside auth recovery because it can surface as “blank app after signup/login”.
+# Discord Verification System Implementation Plan
 
-2. Implementation plan
-A. Harden Supabase client
-- Update the Supabase client auth config to include:
-  - `persistSession: true`
-  - `autoRefreshToken: true`
-  - `detectSessionInUrl: true`
-- Keep browser storage persistence, but centralize recovery around invalid tokens.
+## Overview
 
-B. Replace the current auth bootstrap with a recovery-first flow
-- Refactor `src/contexts/AuthContext.tsx` to:
-  - expose `authReady`/`loading`, `user`, and `session`
-  - run a startup `getSession()` check once
-  - validate:
-    - missing session
-    - missing access token
-    - expired session (`expires_at`)
-    - thrown Supabase/session errors
-  - on failure:
-    - call `supabase.auth.signOut({ scope: 'local' })` when possible
-    - remove Supabase auth keys from localStorage/sessionStorage
-    - preserve only safe non-auth app keys if needed
-    - redirect to `/auth`
-    - reload once safely with a loop guard flag in storage so it does not infinite-reload
-- Add a small recovery utility inside the auth layer so all auth failures use one path.
+This plan implements a secure Discord server membership verification system for PropFirm Knowledge Journal. Users must join and verify their Discord membership before accessing full journal features (add/edit/delete trades).
 
-C. Add a global auth event handler
-- Extend `onAuthStateChange` handling for:
-  - `SIGNED_OUT`
-  - `TOKEN_REFRESH_FAILED`
-  - `USER_UPDATED` / `INITIAL_SESSION` as normal state sync
-  - generic auth error cases from failed session restoration path
-- For destructive auth failures:
-  - reset in-memory auth state
-  - clear broken auth storage
-  - navigate to `/auth`
-- Important: keep callback non-blocking; no long awaited chains inside `onAuthStateChange`.
+---
 
-D. Block rendering until auth is verified
-- Add an auth loading/recovery screen component using the existing visual style/spinner.
-- In `App.tsx`, do not mount the main route tree until auth bootstrap completes.
-- This prevents child hooks (`useAccounts`, `useTrades`, `useDiscord`) from firing with stale/broken sessions and crashing the app.
+## Architecture Diagram
 
-E. Use the real React Error Boundary globally
-- Replace `AppWithErrorBoundary` try/catch usage with the existing `ErrorBoundary` component in the app root.
-- Keep fallback UI with:
-  - clear crash message
-  - “Reload App” button
-  - “Go to Sign In” or “Go Home” recovery action
-- This ensures runtime exceptions never become a white screen.
-
-F. Add broken-auth fallback behavior
-- Since you chose `/auth`, recovery will always redirect there after cleanup.
-- Public/guest-safe pages can still function after fresh load, but auth-recovery itself will go to `/auth`.
-- If needed, `ProtectedRoute` can be upgraded to redirect to `/auth` only after auth is ready, avoiding flicker.
-
-G. Prevent downstream hooks from making bad requests during recovery
-- Review hooks that depend on `user`:
-  - `useAccounts`
-  - `useTrades`
-  - `DiscordContext`
-- Gate fetch/subscription setup until auth is ready and session is valid.
-- This avoids race conditions where hooks run during cleanup and create noisy errors.
-
-H. Fix the signup/login side-effect that is currently failing
-- Current logs show `createDefaultAccount()` repeatedly hitting RLS errors on `accounts`.
-- I will inspect the current RLS/policies and then plan the proper fix so post-signup no longer lands users in a broken semi-authenticated state.
-- This is not the same as the stale-token issue, but it is actively harming login/signup stability and should be included in the implementation pass.
-
-I. Domain + redirect validation
-- Verify Supabase Auth URL configuration matches the active deployed domain(s):
-  - preview/staging URL if used for auth redirects
-  - production custom domain
-- Specifically confirm Site URL and Redirect URLs include the current deployed app origin and `/auth` flow expectations.
-- This part is configuration guidance rather than app code, but I’ll align the code to the correct domain handling.
-
-3. Files likely to change
-- `src/integrations/supabase/client.ts`
-- `src/contexts/AuthContext.tsx`
-- `src/App.tsx`
-- `src/components/ErrorBoundary.tsx` or a new auth-recovery fallback component
-- `src/components/ProtectedRoute.tsx`
-- Possibly:
-  - `src/hooks/useAccounts.ts`
-  - `src/hooks/useTrades.ts`
-  - `src/contexts/DiscordContext.tsx`
-
-4. Technical design
 ```text
-App start
-  -> AuthProvider bootstraps
-     -> getSession()
-        -> valid session => set user/session, authReady=true
-        -> invalid/broken session => clear auth storage, local signout, redirect /auth, single safe reload
-  -> while bootstrapping => loading/recovery screen
-  -> after authReady => render app routes
-  -> runtime crash anywhere => ErrorBoundary fallback, never blank screen
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           User Flow                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   ┌──────────┐     ┌─────────────┐     ┌──────────────┐                 │
+│   │  User    │────>│  Click      │────>│  Discord     │                 │
+│   │  Login   │     │  "Verify"   │     │  OAuth Page  │                 │
+│   └──────────┘     └─────────────┘     └──────────────┘                 │
+│                                               │                          │
+│                                               v                          │
+│   ┌──────────────────────────────────────────────────────────┐          │
+│   │                Edge Function: discord-auth                │          │
+│   │  1. Exchange code for token                               │          │
+│   │  2. Get Discord user ID                                   │          │
+│   │  3. Check guild membership via Bot API                    │          │
+│   │  4. Update user_profiles with discord_verified            │          │
+│   └──────────────────────────────────────────────────────────┘          │
+│                                               │                          │
+│                                               v                          │
+│   ┌──────────────┐     ┌──────────────────────────────────┐             │
+│   │  Verified    │<────│  Redirect back to app             │             │
+│   │  Full Access │     │  with verification status         │             │
+│   └──────────────┘     └──────────────────────────────────┘             │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-5. Recovery rules I will implement
-- Broken session detected:
-  - clear Supabase tokens
-  - clear sessionStorage
-  - clear localStorage auth entries
-  - redirect to `/auth`
-  - reload once only
-- Logged out user:
-  - no crash, clean unauthenticated state
-  - `/auth` available normally
-- Fresh user:
-  - app loads without recovery flow
-- Old token/domain change:
-  - auto-cleanup and recover to `/auth`
+---
 
-6. Testing plan
-- Old token in storage from previous domain/deploy
-- Expired session token
-- Corrupted Supabase auth key in localStorage
-- Fresh anonymous user load
-- Logged-out user load
-- Successful sign-in after forced recovery
-- Signup flow after recovery
-- Ensure crash fallback renders instead of white screen
+## Phase 1: Database Schema Updates
 
-7. Risk notes
-- Full `localStorage.clear()` may wipe harmless app preferences like last route or toast timestamps. I’ll prefer targeted auth-key cleanup first, then broader cleanup only if necessary for recovery.
-- The `accounts` RLS failure is a separate root issue and should be fixed in the same implementation round to avoid false “auth is broken” symptoms after signup.
+### 1.1 Modify `user_profiles` Table
 
-8. Expected outcome
-- No more blank screen on broken auth/session restore
-- Users automatically recover to `/auth`
-- App waits for auth validation before rendering
-- Runtime crashes show a fallback UI instead of a white page
-- Stale browser storage stops poisoning new deployments/domain changes
+Add Discord verification fields:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| discord_id | TEXT | User's Discord ID (unique) |
+| discord_username | TEXT | Discord username for display |
+| discord_verified | BOOLEAN | Verification status (default: false) |
+| discord_verified_at | TIMESTAMPTZ | When verification occurred |
+
+### 1.2 Update RLS Policies
+
+Modify existing RLS policies on `trades` and `accounts` tables to require Discord verification for write operations:
+
+- **INSERT/UPDATE/DELETE**: Only allow if user's `discord_verified = true`
+- **SELECT**: Unchanged (users can still view their data)
+
+Create a security definer function to check Discord verification status without causing RLS recursion.
+
+---
+
+## Phase 2: Edge Function - Discord Authentication
+
+### 2.1 Create `discord-auth` Edge Function
+
+**Location**: `supabase/functions/discord-auth/index.ts`
+
+**Endpoints**:
+- `GET /discord-auth?action=login` - Redirect to Discord OAuth
+- `GET /discord-auth?code=xxx` - Handle OAuth callback
+- `GET /discord-auth?action=check` - Re-verify membership status
+
+**Flow**:
+1. User clicks "Verify with Discord"
+2. Redirect to Discord OAuth with scopes: `identify`, `guilds.members.read`
+3. Discord redirects back with authorization code
+4. Edge function exchanges code for access token
+5. Fetch user's Discord ID using access token
+6. Use Bot token to call `GET /guilds/{guild_id}/members/{user_id}`
+7. If member exists (200 response): set `discord_verified = true`
+8. If not member (404 response): return error prompting to join server
+9. Redirect back to app with success/failure status
+
+### 2.2 Required Secrets
+
+| Secret Name | Description |
+|-------------|-------------|
+| DISCORD_CLIENT_ID | OAuth application client ID |
+| DISCORD_CLIENT_SECRET | OAuth application secret |
+| DISCORD_BOT_TOKEN | Bot token with Server Members Intent |
+| DISCORD_GUILD_ID | Your Discord server ID |
+
+---
+
+## Phase 3: Frontend Components
+
+### 3.1 Discord Verification Context
+
+**File**: `src/contexts/DiscordContext.tsx`
+
+Manages:
+- `discordVerified`: boolean state
+- `discordUsername`: display name
+- `isVerifying`: loading state
+- `checkVerification()`: fetch verification status
+- `startVerification()`: initiate OAuth flow
+
+### 3.2 Discord Verification Banner
+
+**File**: `src/components/DiscordVerificationBanner.tsx`
+
+States:
+1. **Locked** (not verified):
+   - "Join Discord to Unlock Full Access"
+   - "Join Discord" button (link to invite)
+   - "Verify with Discord" button
+
+2. **Verifying**:
+   - Loading spinner
+   - "Checking your Discord status..."
+
+3. **Verified**:
+   - Badge: "Discord Verified ✓"
+   - No further prompts
+
+### 3.3 Update Existing Components
+
+**Modify action interception in**:
+- `NewTradeModal.tsx` - Check Discord verification before allowing trade entry
+- `EditTradeModal.tsx` - Check verification before allowing edits
+- `TradingTable.tsx` - Check verification for delete actions
+- `Settings.tsx` - Check verification for account management
+
+**Update flow**:
+```text
+Guest User → Show AuthModal (login/signup)
+Logged In + Not Discord Verified → Show Discord Verification prompt
+Logged In + Discord Verified → Allow full access
+```
+
+### 3.4 UI Updates
+
+**MobileHeader.tsx** & **AppSidebar.tsx**:
+- Show Discord verification badge when verified
+- Show "Verify Discord" link when not verified
+
+**MobileMenu.tsx**:
+- Add "Discord Verification" menu item
+- Show verification status
+
+---
+
+## Phase 4: Security Implementation
+
+### 4.1 RLS Policy Updates
+
+```sql
+-- Security definer function to check Discord verification
+CREATE OR REPLACE FUNCTION public.is_discord_verified(user_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (SELECT discord_verified FROM public.user_profiles WHERE user_id = user_uuid),
+    false
+  );
+$$;
+
+-- Update trades INSERT policy
+DROP POLICY IF EXISTS "Users can create their own trades" ON trades;
+CREATE POLICY "Users can create their own trades" ON trades
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id 
+    AND public.is_discord_verified(auth.uid())
+  );
+
+-- Similar updates for UPDATE and DELETE policies
+```
+
+### 4.2 Edge Function Security
+
+- Verify JWT tokens for authenticated requests
+- Validate Discord OAuth state parameter to prevent CSRF
+- Rate limit verification attempts
+- Log all verification attempts for audit
+
+---
+
+## Phase 5: User Experience
+
+### 5.1 Verification Flow UX
+
+1. **After Login**:
+   - Check `discord_verified` status
+   - If not verified, show non-blocking banner
+
+2. **On Restricted Action**:
+   - Show modal: "Discord Verification Required"
+   - Benefits list: "Track stats", "Access history", etc.
+   - Two buttons: "Join Discord Server", "I've Joined - Verify"
+
+3. **OAuth Flow**:
+   - Opens in new window (desktop) or in-app browser (mobile)
+   - Auto-closes and refreshes status on completion
+
+4. **Success State**:
+   - Toast: "Discord Verified! Full access unlocked."
+   - Badge appears in header
+   - All features immediately available
+
+### 5.2 Error Handling
+
+| Error | User Message |
+|-------|--------------|
+| Not in server | "Please join our Discord server first, then try again." |
+| OAuth denied | "Discord authorization was cancelled." |
+| Network error | "Connection issue. Please try again." |
+| Rate limited | "Too many attempts. Please wait a moment." |
+
+---
+
+## Technical Details
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `supabase/functions/discord-auth/index.ts` | OAuth handling and membership verification |
+| `src/contexts/DiscordContext.tsx` | Discord verification state management |
+| `src/components/DiscordVerificationBanner.tsx` | Verification UI banner |
+| `src/components/DiscordVerificationModal.tsx` | Modal for verification prompts |
+| `src/hooks/useDiscordVerification.ts` | Hook for verification logic |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/App.tsx` | Add DiscordProvider |
+| `src/contexts/GuestContext.tsx` | Integrate Discord verification check |
+| `src/components/NewTradeModal.tsx` | Add Discord verification gate |
+| `src/components/EditTradeModal.tsx` | Add Discord verification gate |
+| `src/components/TradingTable.tsx` | Add Discord verification gate for delete |
+| `src/components/MobileHeader.tsx` | Show Discord badge |
+| `src/components/AppSidebar.tsx` | Add Discord verification status |
+| `src/components/MobileMenu.tsx` | Add Discord verification menu item |
+| `src/pages/Settings.tsx` | Add Discord verification gate |
+
+### Database Migrations
+
+1. Add columns to `user_profiles` table
+2. Create `is_discord_verified` function
+3. Update RLS policies on `trades` and `accounts`
+
+---
+
+## Implementation Order
+
+1. **Request Discord API secrets** - Required before any implementation
+2. **Database migration** - Add Discord fields to user_profiles
+3. **Edge function** - Create discord-auth function
+4. **Frontend context** - Create DiscordContext
+5. **UI components** - Banner, modal, badges
+6. **Gate modifications** - Update existing components
+7. **RLS policy updates** - Enforce at database level
+8. **Testing** - End-to-end verification flow
+
+---
+
+## Required User Action Before Implementation
+
+You need to set up a Discord Developer Application:
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application
+3. Go to **OAuth2** section:
+   - Add redirect URL: `https://notyhakhjrmzhnnjbiqp.supabase.co/functions/v1/discord-auth`
+   - Copy **Client ID** and **Client Secret**
+4. Go to **Bot** section:
+   - Create a bot
+   - Enable **Server Members Intent** under Privileged Gateway Intents
+   - Copy **Bot Token**
+5. Get your Discord Server (Guild) ID:
+   - Enable Developer Mode in Discord settings
+   - Right-click your server → Copy ID
+
+Once you have these credentials, I'll securely store them as Supabase secrets and proceed with implementation.
+

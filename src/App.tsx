@@ -6,12 +6,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { GuestProvider } from "@/contexts/GuestContext";
 import { DiscordProvider } from "@/contexts/DiscordContext";
 import { SplashScreen } from "@/components/SplashScreen";
 import { MobileLayout } from "@/components/MobileLayout";
 import { AuthModal } from "@/components/AuthModal";
+import { AuthRecoveryScreen } from "@/components/AuthRecoveryScreen";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeCapacitor } from "@/lib/capacitor";
 import Index from "./pages/Index";
@@ -25,42 +27,17 @@ import PublicTrade from "./pages/PublicTrade";
 import TradeReview from "./pages/TradeReview";
 import TradeIdeasPage from "./pages/TradeIdeasPage";
 
-// Add error boundary wrapper for the entire app
-const AppWithErrorBoundary = ({ children }: { children: React.ReactNode }) => {
-  try {
-    return <>{children}</>;
-  } catch (error) {
-    console.error('App error:', error);
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center p-8">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Something went wrong</h1>
-          <p className="text-muted-foreground mb-4">Please refresh the page and try again</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Refresh Page
-          </button>
-        </div>
-      </div>
-    );
-  }
-};
-
-// Configure React Query with caching for mobile performance
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 30, // 30 minutes (formerly cacheTime)
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 30,
       refetchOnWindowFocus: false,
       retry: 2,
     },
   },
 });
 
-// Desktop layout wrapper component
 function DesktopLayout({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
 
@@ -75,9 +52,9 @@ function DesktopLayout({ children }: { children: React.ReactNode }) {
         <div className="flex-1 flex flex-col w-full max-w-full overflow-x-hidden">
           <header className="h-12 flex items-center border-b border-border bg-card w-full px-4 gap-3">
             <SidebarTrigger className="ml-2" />
-            <img 
-              src="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg" 
-              alt="PropFirm" 
+            <img
+              src="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg"
+              alt="PropFirm"
               className="h-8 w-8 rounded object-cover"
             />
             <div className="flex-1">
@@ -87,9 +64,7 @@ function DesktopLayout({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           <main className="flex-1 p-4 w-full max-w-full overflow-x-hidden">
-            <div className="w-full max-w-full overflow-x-hidden">
-              {children}
-            </div>
+            <div className="w-full max-w-full overflow-x-hidden">{children}</div>
           </main>
         </div>
       </div>
@@ -97,7 +72,6 @@ function DesktopLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Main routes component
 function AppRoutes() {
   return (
     <Routes>
@@ -113,14 +87,13 @@ function AppRoutes() {
   );
 }
 
-const App = () => {
+function AppShell() {
   const [showSplash, setShowSplash] = useState(true);
+  const { authReady, loading } = useAuth();
 
-  // Initialize Capacitor plugins on mount
   useEffect(() => {
     initializeCapacitor();
-    
-    // Hide splash after a short delay to allow auth check
+
     const timer = setTimeout(() => {
       setShowSplash(false);
     }, 2000);
@@ -128,8 +101,37 @@ const App = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  const shouldBlockRender = loading || !authReady;
+
   return (
-    <AppWithErrorBoundary>
+    <>
+      <SplashScreen isVisible={showSplash} />
+      {shouldBlockRender ? (
+        <AuthRecoveryScreen />
+      ) : (
+        <>
+          <AuthModal />
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/trade/:tradeId" element={<PublicTrade />} />
+            <Route
+              path="/*"
+              element={
+                <DesktopLayout>
+                  <AppRoutes />
+                </DesktopLayout>
+              }
+            />
+          </Routes>
+        </>
+      )}
+    </>
+  );
+}
+
+const App = () => {
+  return (
+    <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
@@ -138,31 +140,14 @@ const App = () => {
             <AuthProvider>
               <GuestProvider>
                 <DiscordProvider>
-                  {/* Splash Screen */}
-                  <SplashScreen isVisible={showSplash} />
-                  
-                  {/* Auth Modal for Guest Users */}
-                  <AuthModal />
-
-                  <Routes>
-                    <Route path="/auth" element={<Auth />} />
-                    <Route path="/trade/:tradeId" element={<PublicTrade />} />
-                    <Route
-                      path="/*"
-                      element={
-                        <DesktopLayout>
-                          <AppRoutes />
-                        </DesktopLayout>
-                      }
-                    />
-                  </Routes>
+                  <AppShell />
                 </DiscordProvider>
               </GuestProvider>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
-    </AppWithErrorBoundary>
+    </ErrorBoundary>
   );
 };
 
