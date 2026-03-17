@@ -80,9 +80,9 @@ export class ErrorBoundary extends Component<Props, State> {
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Reload Page
                 </Button>
-                <Button onClick={this.handleGoHome} variant="secondary" className="w-full touch-target" size="lg">
+                <Button onClick={this.handleGoToAuth} variant="secondary" className="w-full touch-target" size="lg">
                   <Home className="w-4 h-4 mr-2" />
-                  Go to Dashboard
+                  Go to Sign In
                 </Button>
               </div>
             </CardContent>
