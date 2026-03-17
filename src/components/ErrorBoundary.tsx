@@ -36,9 +36,9 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: undefined, errorInfo: undefined });
   };
 
-  private handleGoHome = () => {
+  private handleGoToAuth = () => {
     this.setState({ hasError: false, error: undefined, errorInfo: undefined });
-    window.location.href = '/';
+    window.location.href = '/auth';
   };
 
   public render() {
