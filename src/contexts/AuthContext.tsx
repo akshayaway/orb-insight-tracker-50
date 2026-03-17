@@ -164,11 +164,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (event === 'TOKEN_REFRESH_FAILED') {
-        void recoverAuthState();
-        return;
-      }
-
       if (nextSession && isSessionInvalid(nextSession)) {
         void recoverAuthState();
         return;
