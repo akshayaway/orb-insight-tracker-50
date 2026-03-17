@@ -15,7 +15,7 @@ interface DiscordContextType {
 const DiscordContext = createContext<DiscordContextType | undefined>(undefined);
 
 export function DiscordProvider({ children }: { children: React.ReactNode }) {
-  const { user, session } = useAuth();
+  const { user, session, authReady } = useAuth();
   const { toast } = useToast();
   const [discordVerified, setDiscordVerified] = useState(false);
   const [discordUsername, setDiscordUsername] = useState<string | null>(null);
