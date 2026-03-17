@@ -79,7 +79,7 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, session]);
+  }, [authReady, user, session]);
 
   useEffect(() => {
     checkVerification();
