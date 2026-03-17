@@ -55,7 +55,7 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
 
   // Load verification status from profile
   const checkVerification = useCallback(async () => {
-    if (!user || !session) {
+    if (!authReady || !user || !session) {
       setDiscordVerified(false);
       setDiscordUsername(null);
       setIsLoading(false);
