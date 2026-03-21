@@ -670,6 +670,8 @@ export type Database = {
           email: string | null
           id: string
           is_admin: boolean | null
+          is_public_journal: boolean
+          share_id: string
           updated_at: string | null
           user_id: string | null
         }
@@ -682,6 +684,8 @@ export type Database = {
           email?: string | null
           id?: string
           is_admin?: boolean | null
+          is_public_journal?: boolean
+          share_id?: string
           updated_at?: string | null
           user_id?: string | null
         }
@@ -694,6 +698,8 @@ export type Database = {
           email?: string | null
           id?: string
           is_admin?: boolean | null
+          is_public_journal?: boolean
+          share_id?: string
           updated_at?: string | null
           user_id?: string | null
         }

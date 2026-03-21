@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 import PublicTrade from "./pages/PublicTrade";
 import TradeReview from "./pages/TradeReview";
 import TradeIdeasPage from "./pages/TradeIdeasPage";
+import PublicJournal from "./pages/PublicJournal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -114,6 +115,7 @@ function AppShell() {
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/trade/:tradeId" element={<PublicTrade />} />
+            <Route path="/journal/share/:shareId" element={<PublicJournal />} />
             <Route
               path="/*"
               element={
