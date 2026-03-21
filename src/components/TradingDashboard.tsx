@@ -7,6 +7,7 @@ import { TradingTable } from './TradingTable';
 import { EquityChart } from './EquityChart';
 import { GuestBanner } from './GuestBanner';
 import { DiscordVerificationBanner } from './DiscordVerificationBanner';
+import { ShareJournalButton } from './ShareJournalButton';
 import { useTrades } from '@/hooks/useTrades';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useAuth } from '@/contexts/AuthContext';
