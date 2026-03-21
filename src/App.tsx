@@ -115,6 +115,7 @@ function AppShell() {
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/trade/:tradeId" element={<PublicTrade />} />
+            <Route path="/journal/share/:shareId" element={<PublicJournal />} />
             <Route
               path="/*"
               element={
