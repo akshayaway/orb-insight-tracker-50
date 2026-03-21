@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 import PublicTrade from "./pages/PublicTrade";
 import TradeReview from "./pages/TradeReview";
 import TradeIdeasPage from "./pages/TradeIdeasPage";
+import PublicJournal from "./pages/PublicJournal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
