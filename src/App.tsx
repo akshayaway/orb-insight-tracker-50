@@ -16,6 +16,7 @@ import { AuthRecoveryScreen } from "@/components/AuthRecoveryScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { initializeCapacitor } from "@/lib/capacitor";
+import { Analytics } from "@vercel/analytics/react";
 import Index from "./pages/Index";
 import Stats from "./pages/Stats";
 import Calendar from "./pages/Calendar";
@@ -147,6 +148,7 @@ const App = () => {
               </GuestProvider>
             </AuthProvider>
           </BrowserRouter>
+          <Analytics />
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>
