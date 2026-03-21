@@ -98,11 +98,17 @@ export function useAccounts() {
       return data;
     } catch (err) {
       console.error('Error creating account:', err);
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : 'Failed to create account',
-        variant: "destructive",
-      });
+      // Don't show destructive toast for RLS errors on new signup — 
+      // the Discord verification banner handles this case
+      const msg = err instanceof Error ? err.message : '';
+      const isRlsError = msg.includes('row-level security') || msg.includes('policy');
+      if (!isRlsError) {
+        toast({
+          title: "Error",
+          description: msg || 'Failed to create account',
+          variant: "destructive",
+        });
+      }
       return null;
     }
   };
