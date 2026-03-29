@@ -54,8 +54,11 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Capture app origin so the callback can redirect back to the correct app URL
+      const appOrigin = url.searchParams.get("origin") || req.headers.get("referer")?.replace(/\/$/, "") || "";
+
       // Use user ID as state parameter for CSRF protection
-      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now() }));
+      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now(), appOrigin }));
 
       const discordAuthUrl = new URL(`${DISCORD_API}/oauth2/authorize`);
       discordAuthUrl.searchParams.set("client_id", DISCORD_CLIENT_ID);
@@ -71,24 +74,19 @@ Deno.serve(async (req) => {
 
     // Step 2: Handle OAuth callback
     if (code) {
-      // Parse state to get user ID
+      // Parse state to get user ID and app origin
       let userId: string;
+      let appOrigin = "";
       try {
         const stateData = JSON.parse(atob(state || ""));
         userId = stateData.userId;
+        appOrigin = stateData.appOrigin || "";
         // Check state isn't too old (10 minutes)
         if (Date.now() - stateData.ts > 600000) {
           throw new Error("State expired");
         }
       } catch {
-        // Redirect back to app with error
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: `${url.origin}/?discord_error=invalid_state`,
-            ...corsHeaders,
-          },
-        });
+        return redirectWithError("invalid_state", appOrigin);
       }
 
       // Exchange code for access token
@@ -106,7 +104,7 @@ Deno.serve(async (req) => {
 
       if (!tokenRes.ok) {
         console.error("Token exchange failed:", await tokenRes.text());
-        return redirectWithError("token_failed");
+        return redirectWithError("token_failed", appOrigin);
       }
 
       const tokenData = await tokenRes.json();
@@ -118,7 +116,7 @@ Deno.serve(async (req) => {
 
       if (!userRes.ok) {
         console.error("User fetch failed:", await userRes.text());
-        return redirectWithError("user_fetch_failed");
+        return redirectWithError("user_fetch_failed", appOrigin);
       }
 
       const discordUser = await userRes.json();
@@ -154,17 +152,13 @@ Deno.serve(async (req) => {
 
         if (upsertError) {
           console.error("Upsert error:", upsertError);
-          return redirectWithError("db_error");
+          return redirectWithError("db_error", appOrigin);
         }
 
-        // Redirect back to app with success
-        // Use a known app URL pattern
-        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
-        const baseUrl = appUrl ? new URL(appUrl).origin : "";
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${baseUrl || "/"}?discord_verified=true`,
+            Location: `${appOrigin}/?discord_verified=true`,
           },
         });
       } else {
@@ -183,12 +177,10 @@ Deno.serve(async (req) => {
             { onConflict: "user_id" }
           );
 
-        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
-        const baseUrl = appUrl ? new URL(appUrl).origin : "";
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${baseUrl || "/"}?discord_error=not_member`,
+            Location: `${appOrigin}/?discord_error=not_member`,
           },
         });
       }
@@ -288,9 +280,9 @@ Deno.serve(async (req) => {
   }
 });
 
-function redirectWithError(error: string) {
+function redirectWithError(error: string, appOrigin = "") {
   return new Response(null, {
     status: 302,
-    headers: { Location: `/?discord_error=${error}` },
+    headers: { Location: `${appOrigin}/?discord_error=${error}` },
   });
 }

@@ -91,7 +91,7 @@ export function DiscordProvider({ children }: { children: React.ReactNode }) {
     setIsVerifying(true);
     try {
       const res = await fetch(
-        `https://notyhakhjrmzhnnjbiqp.supabase.co/functions/v1/discord-auth?action=login`,
+        `https://notyhakhjrmzhnnjbiqp.supabase.co/functions/v1/discord-auth?action=login&origin=${encodeURIComponent(window.location.origin)}`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
