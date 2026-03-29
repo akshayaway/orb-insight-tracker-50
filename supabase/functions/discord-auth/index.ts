@@ -152,17 +152,13 @@ Deno.serve(async (req) => {
 
         if (upsertError) {
           console.error("Upsert error:", upsertError);
-          return redirectWithError("db_error");
+          return redirectWithError("db_error", appOrigin);
         }
 
-        // Redirect back to app with success
-        // Use a known app URL pattern
-        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
-        const baseUrl = appUrl ? new URL(appUrl).origin : "";
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${baseUrl || "/"}?discord_verified=true`,
+            Location: `${appOrigin}/?discord_verified=true`,
           },
         });
       } else {
