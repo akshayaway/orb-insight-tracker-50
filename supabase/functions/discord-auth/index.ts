@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
 
       if (!userRes.ok) {
         console.error("User fetch failed:", await userRes.text());
-        return redirectWithError("user_fetch_failed");
+        return redirectWithError("user_fetch_failed", appOrigin);
       }
 
       const discordUser = await userRes.json();
