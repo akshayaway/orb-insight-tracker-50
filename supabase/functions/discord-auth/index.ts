@@ -54,8 +54,11 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Capture app origin so the callback can redirect back to the correct app URL
+      const appOrigin = url.searchParams.get("origin") || req.headers.get("referer")?.replace(/\/$/, "") || "";
+
       // Use user ID as state parameter for CSRF protection
-      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now() }));
+      const stateParam = btoa(JSON.stringify({ userId: user.id, ts: Date.now(), appOrigin }));
 
       const discordAuthUrl = new URL(`${DISCORD_API}/oauth2/authorize`);
       discordAuthUrl.searchParams.set("client_id", DISCORD_CLIENT_ID);
