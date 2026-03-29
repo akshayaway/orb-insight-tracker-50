@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
 
       if (!tokenRes.ok) {
         console.error("Token exchange failed:", await tokenRes.text());
-        return redirectWithError("token_failed");
+        return redirectWithError("token_failed", appOrigin);
       }
 
       const tokenData = await tokenRes.json();
