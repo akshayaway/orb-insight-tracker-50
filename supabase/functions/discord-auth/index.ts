@@ -74,24 +74,19 @@ Deno.serve(async (req) => {
 
     // Step 2: Handle OAuth callback
     if (code) {
-      // Parse state to get user ID
+      // Parse state to get user ID and app origin
       let userId: string;
+      let appOrigin = "";
       try {
         const stateData = JSON.parse(atob(state || ""));
         userId = stateData.userId;
+        appOrigin = stateData.appOrigin || "";
         // Check state isn't too old (10 minutes)
         if (Date.now() - stateData.ts > 600000) {
           throw new Error("State expired");
         }
       } catch {
-        // Redirect back to app with error
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: `${url.origin}/?discord_error=invalid_state`,
-            ...corsHeaders,
-          },
-        });
+        return redirectWithError("invalid_state", appOrigin);
       }
 
       // Exchange code for access token
