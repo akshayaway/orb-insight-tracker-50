@@ -177,12 +177,10 @@ Deno.serve(async (req) => {
             { onConflict: "user_id" }
           );
 
-        const appUrl = req.headers.get("origin") || req.headers.get("referer") || "";
-        const baseUrl = appUrl ? new URL(appUrl).origin : "";
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `${baseUrl || "/"}?discord_error=not_member`,
+            Location: `${appOrigin}/?discord_error=not_member`,
           },
         });
       }
