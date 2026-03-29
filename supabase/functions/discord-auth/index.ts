@@ -280,9 +280,9 @@ Deno.serve(async (req) => {
   }
 });
 
-function redirectWithError(error: string) {
+function redirectWithError(error: string, appOrigin = "") {
   return new Response(null, {
     status: 302,
-    headers: { Location: `/?discord_error=${error}` },
+    headers: { Location: `${appOrigin}/?discord_error=${error}` },
   });
 }
