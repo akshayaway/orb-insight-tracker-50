@@ -26,7 +26,10 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const redirectUri = `${SUPABASE_URL}/functions/v1/discord-auth`;
+    const configuredOrigin = SUPABASE_URL.replace(/\/$/, "").replace(/^http:\/\//, "https://");
+    const requestOrigin = url.origin.replace(/\/$/, "");
+    const redirectOrigin = requestOrigin.startsWith("https://") ? requestOrigin : configuredOrigin;
+    const redirectUri = `${redirectOrigin}/functions/v1/discord-auth`;
 
     // Step 1: Initiate OAuth - redirect to Discord
     if (action === "login") {
