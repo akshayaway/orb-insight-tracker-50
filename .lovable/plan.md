@@ -1,55 +1,37 @@
 
 
-# Fix Discord Verification System
+# Clean Journal Share URLs with Username Slugs
 
-## Root Cause Analysis
+## Current State
+URLs look like: `propfirmknowledgejournal.in/journal/share/9f3388167f57a714e63e1a48`
 
-Two distinct issues found from the edge function logs and database:
+## Target
+URLs like: `propfirmknowledgejournal.in/journal/share/immortalwar`
 
-### Issue 1: Duplicate `discord_id` unique constraint violation
-The edge function log shows:
-```
-duplicate key value violates unique constraint "user_profiles_discord_id_key"
-Key (discord_id)=(910214940164522024) already exists.
-```
-The `discord_id` column has a **UNIQUE constraint**. The same Discord account (`910214940164522024`) is already linked to user `1a99c9de-...` (likely your other email `immortalwar033@gmail.com`). When your current account (`immortalwar333@gmail.com`) tries to verify, the upsert uses `onConflict: "user_id"` but the conflict is actually on `discord_id` — causing the insert to fail and returning `db_error`.
+## Plan
 
-### Issue 2: Accounts table INSERT blocked
-The `accounts` INSERT RLS policy requires `is_discord_verified(auth.uid())`. Since verification failed, account creation also fails, causing the flood of "Failed to create account" toasts.
+### 1. Database: Add `journal_slug` column
+- Add a `journal_slug` text column (unique, nullable) to `user_profiles`
+- Backfill from `discord_username` (lowercased, stripped of special chars)
+- Create a trigger that auto-sets `journal_slug` from `discord_username` whenever it's updated (via Discord verification)
+- Update the existing RLS "anyone can read public journal" policy to also match by `journal_slug`
 
-## Fix Plan
+### 2. Edge Function: Set slug on Discord verification
+- In `discord-auth/index.ts`, when upserting the profile after verification, also set `journal_slug` to a sanitized version of the Discord username
 
-### 1. Database migration: Drop the UNIQUE constraint on `discord_id`
-Allow the same Discord account to be linked to multiple app accounts (or alternatively, before linking, clear the old link).
+### 3. Hook: Look up by slug instead of share_id
+- Update `usePublicJournal.ts` to query `journal_slug` instead of `share_id` when the URL param doesn't look like a hex string (support both for backward compatibility)
 
-```sql
-ALTER TABLE public.user_profiles 
-DROP CONSTRAINT user_profiles_discord_id_key;
-```
+### 4. Share button: Show clean URL
+- Update `ShareJournalButton.tsx` to fetch and display the `journal_slug`-based URL instead of the `share_id` URL
+- Fallback to `share_id` URL if no slug exists
 
-### 2. Edge function: Handle discord_id reassignment
-Before upserting, clear the `discord_id` from any other profile that currently holds it — effectively "moving" the Discord link to the new user account.
-
-In `supabase/functions/discord-auth/index.ts`, before each upsert (lines 142-154 and 170-181), add:
-```typescript
-// Clear discord_id from any other user who has it
-await supabase
-  .from("user_profiles")
-  .update({ discord_id: null, discord_verified: false, discord_verified_at: null })
-  .eq("discord_id", discordUser.id)
-  .neq("user_id", userId);
-```
-
-### 3. Redeploy the edge function
-Deploy the updated `discord-auth` function so changes take effect.
+### 5. Route stays the same
+- `/journal/share/:shareId` route unchanged — the param just becomes a username slug instead of a hex ID
 
 ## Files to Change
-1. **New migration SQL** — drop `user_profiles_discord_id_key` unique constraint
-2. **`supabase/functions/discord-auth/index.ts`** — add discord_id cleanup before upsert
-3. **Deploy** edge function
-
-## What This Fixes
-- Discord verification will succeed even if the Discord account was previously linked to another app user
-- The user will be redirected with `?discord_verified=true` instead of `?discord_error=db_error`
-- Account creation will unblock since `is_discord_verified()` will return true
+1. **New migration** — add `journal_slug` column, backfill, trigger
+2. **`supabase/functions/discord-auth/index.ts`** — set `journal_slug` on verification
+3. **`src/hooks/usePublicJournal.ts`** — support slug lookup
+4. **`src/components/ShareJournalButton.tsx`** — display slug-based URL
 
