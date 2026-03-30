@@ -25,6 +25,40 @@
     <link rel="icon" href="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg" />
     <link rel="apple-touch-icon" href="https://i.postimg.cc/W31cqNRN/20260117-155732.jpg" />
     
+    <script>
+      // 🔥 CRITICAL: Handle asset loading failures (404s on hashed files)
+      // This script runs before any modules are loaded.
+      window.addEventListener('error', function(e) {
+        if (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK') {
+          console.error('Asset failed to load:', e.target.src || e.target.href);
+          
+          // Clear storage to force a clean state
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Unregister service workers if possible
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                for(var i = 0; i < regs.length; i++) { regs[i].unregister(); }
+              });
+            }
+          } catch (err) {}
+
+          // Prevent infinite reload loops (wait at least 5 seconds between attempts)
+          var reloadKey = 'app_recovery_timestamp';
+          var lastReload = sessionStorage.getItem(reloadKey);
+          var now = Date.now();
+          
+          if (!lastReload || (now - parseInt(lastReload) > 5000)) {
+            sessionStorage.setItem(reloadKey, now.toString());
+            console.log('🔄 Version mismatch detected. Forcing hard reload...');
+            window.location.reload(true);
+          }
+        }
+      }, true);
+    </script>
+
     <!-- Splash screen background for smooth loading -->
     <style>
       html, body {

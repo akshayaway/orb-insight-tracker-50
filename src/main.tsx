@@ -3,7 +3,7 @@ import App from './App.tsx'
 import './index.css'
 
 // 🔥 FORCE VERSION RESET (PREVENT OLD USERS BLANK SCREEN)
-const APP_VERSION = "7"; // 🔁 CHANGE THIS ON EVERY DEPLOY
+const APP_VERSION = "8"; // 🔁 CHANGE THIS ON EVERY DEPLOY
 
 try {
   const storedVersion = localStorage.getItem("app_version");

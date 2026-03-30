@@ -4,7 +4,7 @@
 
 export const getAppVersion = (): string => {
   // This should match the APP_VERSION in main.tsx
-  return "7";
+  return "8";
 };
 
 export const clearAllCaches = async (): Promise<void> => {

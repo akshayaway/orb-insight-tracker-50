@@ -1,4 +1,4 @@
-const CACHE_NAME = 'propjournal-cache-v7'; // 🔁 MATCH THIS WITH APP_VERSION
+const CACHE_NAME = 'propjournal-cache-v8'; // 🔁 MATCH THIS WITH APP_VERSION
 const OFFLINE_URL = '/';
 
 const ASSETS_TO_CACHE = [
