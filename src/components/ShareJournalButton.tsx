@@ -26,11 +26,12 @@ export function ShareJournalButton() {
       setLoading(true);
       const { data } = await supabase
         .from('user_profiles')
-        .select('share_id, is_public_journal')
+        .select('share_id, journal_slug, is_public_journal')
         .eq('user_id', user.id)
         .single();
       if (data) {
         setShareId(data.share_id);
+        setJournalSlug((data as any).journal_slug ?? null);
         setIsPublic(data.is_public_journal ?? false);
       }
       setLoading(false);
