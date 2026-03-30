@@ -15,6 +15,7 @@ export function ShareJournalButton() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
+  const [journalSlug, setJournalSlug] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
   const [copied, setCopied] = useState(false);
 
