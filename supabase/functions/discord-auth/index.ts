@@ -146,6 +146,9 @@ Deno.serve(async (req) => {
 
       if (isMember) {
         // User is a member - verify them
+        // Generate journal_slug from discord username
+        const journalSlug = discordUser.username.toLowerCase().replace(/[^a-z0-9]/g, '');
+
         const { error: upsertError } = await supabase
           .from("user_profiles")
           .upsert(

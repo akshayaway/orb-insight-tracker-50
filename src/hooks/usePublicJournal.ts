@@ -34,13 +34,20 @@ export function usePublicJournal(shareId: string | undefined) {
         setLoading(true);
         setError(null);
 
-        // 1. Fetch profile by share_id
-        const { data: profileData, error: profileError } = await supabase
+        // 1. Fetch profile by journal_slug or share_id (backward compat)
+        const isHexId = /^[0-9a-f]{24}$/.test(shareId);
+        const query = supabase
           .from('user_profiles')
-          .select('user_id, discord_username, share_id, is_public_journal')
-          .eq('share_id', shareId)
-          .eq('is_public_journal', true)
-          .single();
+          .select('user_id, discord_username, share_id, journal_slug, is_public_journal')
+          .eq('is_public_journal', true);
+        
+        if (isHexId) {
+          query.eq('share_id', shareId);
+        } else {
+          query.eq('journal_slug', shareId);
+        }
+
+        const { data: profileData, error: profileError } = await query.single();
 
         if (profileError || !profileData) {
           setError('This journal is not available or sharing is disabled.');

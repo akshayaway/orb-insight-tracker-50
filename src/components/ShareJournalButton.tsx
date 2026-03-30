@@ -15,6 +15,7 @@ export function ShareJournalButton() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
+  const [journalSlug, setJournalSlug] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -25,11 +26,12 @@ export function ShareJournalButton() {
       setLoading(true);
       const { data } = await supabase
         .from('user_profiles')
-        .select('share_id, is_public_journal')
+        .select('share_id, journal_slug, is_public_journal')
         .eq('user_id', user.id)
         .single();
       if (data) {
         setShareId(data.share_id);
+        setJournalSlug((data as any).journal_slug ?? null);
         setIsPublic(data.is_public_journal ?? false);
       }
       setLoading(false);
@@ -54,7 +56,8 @@ export function ShareJournalButton() {
     }
   };
 
-  const shareUrl = shareId ? `${window.location.origin}/journal/share/${shareId}` : '';
+  const slug = journalSlug || shareId;
+  const shareUrl = slug ? `${window.location.origin}/journal/share/${slug}` : '';
 
   const copyLink = async () => {
     try {
