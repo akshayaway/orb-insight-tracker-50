@@ -56,7 +56,8 @@ export function ShareJournalButton() {
     }
   };
 
-  const shareUrl = shareId ? `${window.location.origin}/journal/share/${shareId}` : '';
+  const slug = journalSlug || shareId;
+  const shareUrl = slug ? `${window.location.origin}/journal/share/${slug}` : '';
 
   const copyLink = async () => {
     try {
