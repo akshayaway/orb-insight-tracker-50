@@ -137,6 +137,13 @@ Deno.serve(async (req) => {
       // Update user_profiles with Discord info
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+      // Clear discord_id from any other user who previously had it
+      await supabase
+        .from("user_profiles")
+        .update({ discord_id: null, discord_verified: false, discord_verified_at: null, updated_at: new Date().toISOString() })
+        .eq("discord_id", discordUser.id)
+        .neq("user_id", userId);
+
       if (isMember) {
         // User is a member - verify them
         const { error: upsertError } = await supabase
