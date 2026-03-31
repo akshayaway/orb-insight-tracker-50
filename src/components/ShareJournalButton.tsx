@@ -6,12 +6,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccounts } from '@/hooks/useAccounts';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export function ShareJournalButton() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { getActiveAccount } = useAccounts();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shareId, setShareId] = useState<string | null>(null);
@@ -19,7 +21,6 @@ export function ShareJournalButton() {
   const [isPublic, setIsPublic] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Fetch current share status when dialog opens
   useEffect(() => {
     if (!open || !user) return;
     (async () => {
@@ -57,7 +58,9 @@ export function ShareJournalButton() {
   };
 
   const slug = journalSlug || shareId;
-  const shareUrl = slug ? `${window.location.origin}/journal/share/${slug}` : '';
+  const activeAccount = getActiveAccount();
+  const accountParam = activeAccount ? `?account=${activeAccount.id}` : '';
+  const shareUrl = slug ? `${window.location.origin}/journal/share/${slug}${accountParam}` : '';
 
   const copyLink = async () => {
     try {
@@ -118,6 +121,11 @@ export function ShareJournalButton() {
                       {copied ? 'Copied' : 'Copy'}
                     </Button>
                   </div>
+                  {activeAccount && (
+                    <p className="text-[10px] text-muted-foreground">
+                      This link will show your "{activeAccount.name}" account view.
+                    </p>
+                  )}
                 </div>
               )}
 
