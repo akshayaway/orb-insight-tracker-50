@@ -21,6 +21,13 @@ export function usePublicJournal(shareId: string | undefined) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('account');
+    }
+    return null;
+  });
 
   useEffect(() => {
     if (!shareId) {
@@ -34,17 +41,16 @@ export function usePublicJournal(shareId: string | undefined) {
         setLoading(true);
         setError(null);
 
-        // 1. Fetch profile by journal_slug or share_id (backward compat)
-        const isHexId = /^[0-9a-f]{24}$/.test(shareId);
+        const isHexId = /^[0-9a-f]{24}$/.test(shareId!);
         const query = supabase
           .from('user_profiles')
           .select('user_id, discord_username, share_id, journal_slug, is_public_journal')
           .eq('is_public_journal', true);
-        
+
         if (isHexId) {
-          query.eq('share_id', shareId);
+          query.eq('share_id', shareId!);
         } else {
-          query.eq('journal_slug', shareId);
+          query.eq('journal_slug', shareId!);
         }
 
         const { data: profileData, error: profileError } = await query.single();
@@ -62,7 +68,6 @@ export function usePublicJournal(shareId: string | undefined) {
 
         const userId = profileData.user_id!;
 
-        // 2. Fetch accounts and trades in parallel
         const [accountsRes, tradesRes] = await Promise.all([
           supabase
             .from('accounts')
@@ -79,8 +84,15 @@ export function usePublicJournal(shareId: string | undefined) {
         if (accountsRes.error) throw accountsRes.error;
         if (tradesRes.error) throw tradesRes.error;
 
-        setAccounts((accountsRes.data as Account[]) || []);
+        const fetchedAccounts = (accountsRes.data as Account[]) || [];
+        setAccounts(fetchedAccounts);
         setTrades((tradesRes.data as Trade[]) || []);
+
+        // Auto-select first account if none selected from URL
+        if (!selectedAccountId && fetchedAccounts.length > 0) {
+          const active = fetchedAccounts.find(a => a.is_active) || fetchedAccounts[0];
+          setSelectedAccountId(active.id);
+        }
       } catch (err) {
         console.error('Error fetching public journal:', err);
         setError('Failed to load journal data.');
@@ -92,9 +104,31 @@ export function usePublicJournal(shareId: string | undefined) {
     fetchPublicData();
   }, [shareId]);
 
+  // Update URL search param when account changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (selectedAccountId) {
+      url.searchParams.set('account', selectedAccountId);
+    } else {
+      url.searchParams.delete('account');
+    }
+    window.history.replaceState({}, '', url.toString());
+  }, [selectedAccountId]);
+
+  const selectedAccount = useMemo(() => {
+    if (!selectedAccountId) return accounts.find(a => a.is_active) || accounts[0] || null;
+    return accounts.find(a => a.id === selectedAccountId) || accounts[0] || null;
+  }, [accounts, selectedAccountId]);
+
+  const filteredTrades = useMemo(() => {
+    if (!selectedAccountId) return trades;
+    return trades.filter(t => t.account_id === selectedAccountId);
+  }, [trades, selectedAccountId]);
+
   const getActiveAccount = useCallback(() => {
-    return accounts.find(a => a.is_active) || accounts[0] || null;
-  }, [accounts]);
+    return selectedAccount;
+  }, [selectedAccount]);
 
   const calculatePnL = useCallback((trade: Trade, account: Account | null) => {
     if (trade.pnl_dollar !== null && trade.pnl_dollar !== undefined) {
@@ -167,10 +201,13 @@ export function usePublicJournal(shareId: string | undefined) {
 
   return {
     profile,
-    trades,
+    trades: filteredTrades,
+    allTrades: trades,
     accounts,
     loading,
     error,
+    selectedAccountId,
+    setSelectedAccountId,
     getActiveAccount,
     calculatePnL,
     calculateStats,
